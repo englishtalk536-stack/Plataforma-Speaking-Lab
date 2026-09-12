@@ -1,93 +1,140 @@
 'use client';
 
-import { SidebarNav } from '@/components/SidebarNav';
-import { StudentHeader } from '@/components/StudentHeader';
-import { SkillPath } from '@/components/SkillPath';
-import { FeedbackRadar } from '@/components/FeedbackRadar';
-import { DailyQuestCard } from '@/components/DailyQuestCard';
-
-// Mock data standing in for a server-side fetch (e.g. a Prisma query in a
-// Server Component, or a call to the backend API). Swap this out for real
-// data without changing any component below.
-const MOCK_STUDENT = {
-  fullName: 'Camila Torres',
-  avatarUrl: null,
-  level: 4,
-  currentXp: 720,
-  xpForCurrentLevel: 800, // floor(100 * 4^1.5)
-  xpForNextLevel: 1118, // floor(100 * 5^1.5)
-  currentStreak: 7,
-  coins: 320,
-};
-
-const MOCK_RADAR = {
-  fluency: 68,
-  grammar: 82,
-  pronunciation: 55,
-  vocabulary: 74,
-};
-
-const MOCK_SKILL_NODES = [
-  { id: '1', title: 'Basic Greetings', xpReward: 50, status: 'COMPLETED' as const },
-  { id: '2', title: 'Ordering Food', xpReward: 75, status: 'UNLOCKED' as const },
-  { id: '3', title: 'Job Interview Prep', xpReward: 150, status: 'LOCKED' as const },
-];
+import { useState } from 'react';
+import { SidebarNav } from '../components/dashboard/SidebarNav';
+import { StudentHeader } from '../components/dashboard/StudentHeader';
+import { SkillPath } from '../components/dashboard/SkillPath';
+import { FeedbackRadar } from '../components/dashboard/FeedbackRadar';
+import { DailyQuestCard } from '../components/dashboard/DailyQuestCard';
+import { LessonModal } from '../components/dashboard/LessonModal';
+import { DashboardSkeleton } from '../components/dashboard/DashboardSkeleton';
+import { DashboardError } from '../components/dashboard/DashboardError';
+import { completeQuest, useDashboardData } from '../lib/hooks/useDashboardData';
+import { getXpRequiredForLevel } from '../lib/gamification/xp-formula';
+import type { SkillPathNodeDto, StudentDashboardResponse } from '../lib/types/dashboard';
 
 export default function DashboardPage() {
+  const { dashboard, error, isLoading, mutate } = useDashboardData();
+
+  const [selectedNode, setSelectedNode] = useState<SkillPathNodeDto | null>(null);
+  const [submittingQuestId, setSubmittingQuestId] = useState<string | null>(null);
+  const [rewardTrigger, setRewardTrigger] = useState(0);
+  const [questError, setQuestError] = useState<string | null>(null);
+
+  if (isLoading && !dashboard) {
+    return <DashboardSkeleton />;
+  }
+
+  if (error && !dashboard) {
+    return <DashboardError message={error instanceof Error ? error.message : 'Unknown error.'} onRetry={() => mutate()} />;
+  }
+
+  if (!dashboard) {
+    return <DashboardSkeleton />;
+  }
+
+  const { profile, skillPath, feedbackRadar, dailyQuests } = dashboard;
+  const xpForCurrentLevel = getXpRequiredForLevel(profile.currentLevel);
+
+  async function handleStartQuest(questId: string) {
+    setQuestError(null);
+    setSubmittingQuestId(questId);
+    try {
+      const result = await completeQuest(questId);
+      setRewardTrigger((n) => n + 1);
+
+      await mutate(
+        (current): StudentDashboardResponse | undefined =>
+          current && {
+            ...current,
+            profile: {
+              ...current.profile,
+              currentLevel: result.currentLevel,
+              currentXP: result.newTotalXp,
+              nextLevelXP: getXpRequiredForLevel(result.currentLevel + 1),
+              streakDays: result.currentStreak,
+              speakingCoins: result.newTotalCoins,
+            },
+            dailyQuests: current.dailyQuests.map((quest) =>
+              quest.id === questId ? { ...quest, status: 'COMPLETED' as const } : quest,
+            ),
+          },
+        { revalidate: false },
+      );
+    } catch (err) {
+      setQuestError(err instanceof Error ? err.message : 'Could not complete the quest. Please try again.');
+    } finally {
+      setSubmittingQuestId(null);
+    }
+  }
+
+  function handleStartLesson(node: SkillPathNodeDto) {
+    // Hook this up to the real lesson/AI-practice flow (e.g. router.push(`/practice/${node.id}`)).
+    console.log('Starting lesson for node', node.id);
+    setSelectedNode(null);
+  }
+
   return (
-    <div className="min-h-screen bg-speaking-white pl-16 md:pl-64">
-      <aside className="fixed left-4 top-4 z-10 md:left-6">
-        <SidebarNav />
-      </aside>
+    <div className="flex min-h-screen gap-4 bg-speaking-white p-4 sm:p-6">
+      <SidebarNav />
 
-      <main className="mx-auto grid max-w-7xl grid-cols-1 gap-6 p-6">
-        <div className="lg:col-span-3">
-          <StudentHeader
-            fullName={MOCK_STUDENT.fullName}
-            avatarUrl={MOCK_STUDENT.avatarUrl}
-            level={MOCK_STUDENT.level}
-            currentXp={MOCK_STUDENT.currentXp}
-            xpForCurrentLevel={MOCK_STUDENT.xpForCurrentLevel}
-            xpForNextLevel={MOCK_STUDENT.xpForNextLevel}
-            currentStreak={MOCK_STUDENT.currentStreak}
-            coins={MOCK_STUDENT.coins}
-          />
-        </div>
+      <main className="flex-1 space-y-6">
+        <StudentHeader
+          fullName={profile.name}
+          avatarUrl={profile.avatarUrl}
+          level={profile.currentLevel}
+          currentXp={profile.currentXP}
+          xpForCurrentLevel={xpForCurrentLevel}
+          xpForNextLevel={profile.nextLevelXP}
+          currentStreak={profile.streakDays}
+          coins={profile.speakingCoins}
+          rewardTrigger={rewardTrigger}
+        />
 
-        <section
-          className="rounded-2xl border border-speaking-border bg-speaking-card p-5 shadow-sm lg:col-span-2"
-          aria-labelledby="skill-path-heading"
-        >
-          <h2 id="skill-path-heading" className="font-title text-xl text-speaking-cobalt">
-            Skill Path
-          </h2>
-          <SkillPath
-            className="mt-4"
-            nodes={MOCK_SKILL_NODES}
-            onSelectNode={(node) => console.log('Selected node', node.id)}
-          />
-        </section>
-
-        <div className="space-y-6 lg:col-span-1">
-          <section
-            className="rounded-2xl border border-speaking-border bg-speaking-card p-5 shadow-sm"
-            aria-labelledby="feedback-radar-heading"
-          >
-            <h2 id="feedback-radar-heading" className="font-title text-xl text-speaking-cobalt">
-              Feedback Radar
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.6fr_1fr]">
+          <section aria-labelledby="skill-path-heading">
+            <h2 id="skill-path-heading" className="font-title text-xl text-speaking-cobalt">
+              Skill Path
             </h2>
-            <FeedbackRadar className="mt-4 flex justify-center" {...MOCK_RADAR} />
+            <SkillPath
+              className="mt-4"
+              nodes={skillPath}
+              selectedNodeId={selectedNode?.id ?? null}
+              onSelectNode={setSelectedNode}
+            />
           </section>
 
-          <DailyQuestCard
-            className="border-speaking-border bg-speaking-card shadow-sm"
-            questTitle="Order coffee like a local"
-            questDescription="A 3-minute voice roleplay at a café counter."
-            xpReward={30}
-            onStart={() => console.log('Starting daily quest')}
-          />
+          <div className="space-y-6">
+            <section aria-labelledby="feedback-radar-heading">
+              <h2 id="feedback-radar-heading" className="font-title text-xl text-speaking-cobalt">
+                Feedback Radar
+              </h2>
+              <FeedbackRadar className="mt-4 flex justify-center" {...feedbackRadar} />
+            </section>
+
+            <div className="space-y-3">
+              {dailyQuests.length === 0 && (
+                <p className="font-body text-sm text-speaking-cobalt/60">No quests assigned for today yet.</p>
+              )}
+              {dailyQuests.map((quest) => (
+                <DailyQuestCard
+                  key={quest.id}
+                  questTitle={quest.title}
+                  questDescription={quest.description}
+                  xpReward={quest.xpReward}
+                  coinReward={quest.coinReward}
+                  status={quest.status}
+                  isSubmitting={submittingQuestId === quest.id}
+                  onStart={() => handleStartQuest(quest.id)}
+                />
+              ))}
+              {questError && <p className="font-body text-xs text-speaking-streak">{questError}</p>}
+            </div>
+          </div>
         </div>
       </main>
+
+      <LessonModal node={selectedNode} onClose={() => setSelectedNode(null)} onStartLesson={handleStartLesson} />
     </div>
   );
 }

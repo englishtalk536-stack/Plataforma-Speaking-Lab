@@ -8,7 +8,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -75,6 +75,12 @@ enum BookingStatus {
   CANCELLED
 }
 
+enum DailyQuestStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+}
+
 // ============================================================================
 // USERS & GAMIFICATION CORE
 // ============================================================================
@@ -109,6 +115,7 @@ model User {
   aiConversations     AiConversation[]
   bookingsAsStudent   ClassBooking[]       @relation("StudentBookings")
   bookingsAsTeacher   ClassBooking[]       @relation("TeacherBookings")
+  dailyQuests         UserDailyQuest[]
 
   @@index([role])
   @@map("users")
@@ -340,4 +347,52 @@ model TeacherFeedback {
   booking ClassBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@map("teacher_feedback")
+}
+
+// ============================================================================
+// DAILY QUESTS
+// ============================================================================
+// Added to support the Daily Quest card on the student dashboard: a small
+// catalog of quests (DailyQuest) and, per student and calendar day, which
+// quest(s) they were assigned and whether they've completed it
+// (UserDailyQuest). Kept separate from SkillNode/UserSkillProgress since
+// quests are day-scoped and repeatable, while skill nodes are permanent
+// one-time unlocks.
+
+model DailyQuest {
+  id           String        @id @default(uuid())
+  title        String
+  description  String
+  xpReward     Int           @map("xp_reward")
+  coinReward   Int           @map("coin_reward")
+  scenarioType ScenarioType? @map("scenario_type")
+  isActive     Boolean       @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  assignments UserDailyQuest[]
+
+  @@index([isActive])
+  @@map("daily_quests")
+}
+
+model UserDailyQuest {
+  id           String           @id @default(uuid())
+  userId       String           @map("user_id")
+  questId      String           @map("quest_id")
+  /** Normalized to UTC midnight of the day this quest was assigned — one row per user/quest/day. */
+  assignedDate DateTime         @map("assigned_date")
+  status       DailyQuestStatus @default(PENDING)
+  completedAt  DateTime?        @map("completed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quest DailyQuest @relation(fields: [questId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questId, assignedDate])
+  @@index([userId, assignedDate])
+  @@map("user_daily_quests")
 }

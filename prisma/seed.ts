@@ -5,6 +5,35 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding SpeakingLab database...');
 
+  const localUser = await prisma.user.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000010' },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000010',
+      email: 'student@localhost.test',
+      fullName: 'Local SpeakingLab Student',
+      level: 3,
+      currentXp: 240,
+      coins: 180,
+      radarFluency: 68,
+      radarGrammar: 62,
+      radarPronunciation: 74,
+      radarVocabulary: 71,
+    },
+  });
+
+  await prisma.streak.upsert({
+    where: { userId: localUser.id },
+    update: {},
+    create: {
+      userId: localUser.id,
+      currentStreak: 4,
+      maxStreak: 7,
+      lastActivityDate: new Date(),
+      freezeCredits: 1,
+    },
+  });
+
   // --------------------------------------------------------------------
   // 1. Skill Tree Nodes
   // --------------------------------------------------------------------
@@ -54,6 +83,62 @@ async function main() {
   });
 
   console.log(`✅ Skill nodes created: ${basicGreetings.title}, ${orderingFood.title}, ${jobInterviewPrep.title}`);
+
+  await prisma.userSkillProgress.upsert({
+    where: { userId_nodeId: { userId: localUser.id, nodeId: basicGreetings.id } },
+    update: { status: NodeStatus.COMPLETED },
+    create: { userId: localUser.id, nodeId: basicGreetings.id, status: NodeStatus.COMPLETED },
+  });
+  await prisma.userSkillProgress.upsert({
+    where: { userId_nodeId: { userId: localUser.id, nodeId: orderingFood.id } },
+    update: { status: NodeStatus.UNLOCKED },
+    create: { userId: localUser.id, nodeId: orderingFood.id, status: NodeStatus.UNLOCKED },
+  });
+  await prisma.userSkillProgress.upsert({
+    where: { userId_nodeId: { userId: localUser.id, nodeId: jobInterviewPrep.id } },
+    update: { status: NodeStatus.LOCKED },
+    create: { userId: localUser.id, nodeId: jobInterviewPrep.id, status: NodeStatus.LOCKED },
+  });
+
+  const questCatalog = [
+    {
+      id: '00000000-0000-0000-0000-000000000301',
+      title: 'Daily Voice Warm-up',
+      description: 'Speak for two minutes about your morning routine.',
+      xpReward: 30,
+      coinReward: 15,
+      scenarioType: 'FREE_TALK' as const,
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000302',
+      title: 'Order with Confidence',
+      description: 'Practice ordering a meal naturally in English.',
+      xpReward: 45,
+      coinReward: 20,
+      scenarioType: 'ROLEPLAY_CAFE' as const,
+    },
+  ];
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  for (const questData of questCatalog) {
+    const quest = await prisma.dailyQuest.upsert({
+      where: { id: questData.id },
+      update: questData,
+      create: questData,
+    });
+    await prisma.userDailyQuest.upsert({
+      where: {
+        userId_questId_assignedDate: {
+          userId: localUser.id,
+          questId: quest.id,
+          assignedDate: today,
+        },
+      },
+      update: {},
+      create: { userId: localUser.id, questId: quest.id, assignedDate: today },
+    });
+  }
+  console.log(`✅ Local user and ${questCatalog.length} daily quests ready: ${localUser.email}`);
 
   // --------------------------------------------------------------------
   // 2. Badges
