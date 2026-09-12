@@ -8,9 +8,10 @@ import { PracticeHeader } from './PracticeHeader';
 import { VoiceAssistantCard } from './VoiceAssistantCard';
 import { AudioRecorderControls, type RecorderStatus } from './AudioRecorderControls';
 import { PronunciationFeedback } from './PronunciationFeedback';
-import { generateNextChallenge, type MockFeedback, type PracticeContext } from '../../lib/ai/practice-context';
+import { generateAdaptiveChallenge, type MockFeedback, type PracticeContext } from '../../lib/ai/practice-context';
 import { evaluateTranscript } from '../../lib/ai/evaluate-transcript';
 import { useSpeechRecognition } from '../../lib/hooks/useSpeechRecognition';
+import { useSpeechSynthesis } from '../../lib/hooks/useSpeechSynthesis';
 import type { CompleteLessonResponse } from '../../lib/types/practice';
 
 export interface PracticeSessionProps {
@@ -27,7 +28,6 @@ type SessionPhase =
   | 'summary'
   | 'submit-error';
 
-const AI_SPEAKING_DURATION_MS = 1400;
 const ASR_FLUSH_DELAY_MS = 900; // time given for the recognizer's final result to arrive after stop()
 
 /** Converts a 1-6 "delta" (as shown in the per-turn feedback badges) to the 0-100 scale the Feedback Radar uses. */
@@ -42,15 +42,17 @@ function average(values: number[]): number {
 
 /**
  * Owns the real turn-by-turn flow of a practice session:
- *   ai-speaking (challenge "read aloud") -> idle (waiting to record) ->
- *   recording (real mic + live transcript) -> processing (ASR settles) ->
- *   feedback (real evaluation of what was actually said) -> next turn...
+ *   ai-speaking (challenge actually spoken aloud via SpeechSynthesis) ->
+ *   idle (waiting to record) -> recording (real mic + live transcript) ->
+ *   processing (ASR settles) -> feedback (real evaluation of what was
+ *   actually said) -> next turn, whose question reacts to that transcript.
  * After turn 5, submits the session's average scores to the backend and
  * shows the confirmed XP/coins/level/streak reward.
  */
 export function PracticeSession({ context }: PracticeSessionProps) {
   const router = useRouter();
   const speech = useSpeechRecognition();
+  const tts = useSpeechSynthesis({ lang: 'en-US' });
 
   const [turnIndex, setTurnIndex] = useState(0);
   const [challengeText, setChallengeText] = useState(context.initialChallenge);
@@ -75,10 +77,10 @@ export function PracticeSession({ context }: PracticeSessionProps) {
     confidenceRef.current = speech.confidence;
   }, [speech.confidence]);
 
-  // Play the initial challenge, then settle to idle.
+  // Speak the initial challenge aloud once, on mount, then settle to idle.
   useEffect(() => {
-    const timer = setTimeout(() => setPhase('idle'), AI_SPEAKING_DURATION_MS);
-    return () => clearTimeout(timer);
+    tts.speak(context.initialChallenge, { onEnd: () => setPhase('idle') });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally mount-only
   }, []);
 
   function handleToggleRecord() {
@@ -102,6 +104,7 @@ export function PracticeSession({ context }: PracticeSessionProps) {
           cefrLevel: context.cefrLevel,
           confidence: confidenceRef.current,
           durationSeconds,
+          teacherNote: context.teacherNote,
         });
 
         turnMetricsRef.current.push({
@@ -125,12 +128,21 @@ export function PracticeSession({ context }: PracticeSessionProps) {
       return;
     }
 
-    const previousWordCount = feedback?.transcript.length ?? 0;
+    // transcriptRef still holds the answer just given (reset only happens
+    // when the *next* recording starts), so the next question can react to it.
+    const nextQuestion = generateAdaptiveChallenge(
+      context.cefrLevel,
+      context.levelBand,
+      nextTurn,
+      transcriptRef.current,
+      context.teacherNote,
+    );
+
     setTurnIndex(nextTurn);
     setFeedback(null);
-    setChallengeText(generateNextChallenge(context.cefrLevel, nextTurn, previousWordCount));
+    setChallengeText(nextQuestion);
     setPhase('ai-speaking');
-    setTimeout(() => setPhase('idle'), AI_SPEAKING_DURATION_MS);
+    tts.speak(nextQuestion, { onEnd: () => setPhase('idle') });
   }
 
   async function submitSession() {
@@ -255,7 +267,9 @@ export function PracticeSession({ context }: PracticeSessionProps) {
           <VoiceAssistantCard
             challengeText={challengeText}
             grammarFocus={context.grammarFocus}
-            isSpeaking={phase === 'ai-speaking'}
+            isSpeaking={tts.isSpeaking}
+            isMuted={tts.isMuted}
+            onToggleMute={tts.toggleMute}
           />
 
           <AudioRecorderControls

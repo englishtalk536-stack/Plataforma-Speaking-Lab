@@ -196,6 +196,110 @@ export function generateNextChallenge(cefrLevel: CEFRLevel, turnIndex: number, p
 }
 
 // ============================================================================
+// Adaptive follow-up questions (reactive to the actual transcript)
+// ============================================================================
+// Honest scope: this is NOT open-ended conversational reasoning — there is
+// no LLM call in this deliverable. It extracts one salient content word
+// from what the student actually said and slots it into a level-appropriate
+// follow-up template, so turns 2-5 genuinely reference the student's own
+// answer instead of firing from a fixed script. A real call to
+// AiPracticeService (built earlier) is the direct upgrade path — it
+// already accepts conversation history and returns an in-character reply.
+
+const STOPWORDS = new Set([
+  'i', 'you', 'he', 'she', 'it', 'we', 'they', 'a', 'an', 'the', 'is', 'are', 'was', 'were', 'am',
+  'to', 'of', 'in', 'on', 'at', 'and', 'but', 'or', 'because', 'so', 'my', 'your', 'his', 'her',
+  'its', 'our', 'their', 'this', 'that', 'these', 'those', 'do', 'does', 'did', 'have', 'has',
+  'had', 'will', 'would', 'can', 'could', 'should', 'must', 'might', 'not', 'with', 'for', 'from',
+  'about', 'like', 'just', 'really', 'very', 'also', 'then', 'than', 'if', 'me', 'him', 'them', 'us',
+  'yeah', 'okay', 'well', 'think', 'guess', 'kind', 'sort', 'there', 'here',
+]);
+
+/** Picks the last content word (4+ letters, not a stopword) mentioned — often the most salient recent topic. */
+function extractTopic(transcript: string): string | null {
+  const words = transcript
+    .toLowerCase()
+    .replace(/[.,!?]/g, '')
+    .split(/\s+/)
+    .filter((word) => word.length > 3 && !STOPWORDS.has(word));
+  return words.length > 0 ? words[words.length - 1] : null;
+}
+
+const REACTIVE_TEMPLATES_BY_BAND: Record<LevelBand, string[]> = {
+  'A1-A2': [
+    "That's interesting! Can you tell me more about {topic}?",
+    'Do you like {topic}? Why or why not?',
+    'How often do you think about {topic}?',
+  ],
+  'B1-B2': [
+    "You mentioned {topic} — what's your honest opinion about it?",
+    'How has {topic} changed for you over the last few years?',
+    'What would you do differently next time, regarding {topic}?',
+  ],
+  'C1-C2': [
+    'Building on what you said about {topic}, how would you defend that to someone who disagrees?',
+    "Let's dig deeper into {topic} — what are the broader implications?",
+    'To what extent does {topic} reflect a wider trend, in your view?',
+  ],
+};
+
+const FOCUS_REMINDERS: { keyword: string; reminder: string }[] = [
+  { keyword: 'irregular', reminder: 'Try using an irregular past tense verb this time!' },
+  { keyword: 'present perfect', reminder: 'Try using the present perfect in your answer!' },
+  { keyword: 'phrasal', reminder: 'See if you can fit in a phrasal verb!' },
+  { keyword: 'conditional', reminder: 'Try phrasing part of your answer as a conditional!' },
+  { keyword: 'fluidez', reminder: 'Try to speak for at least 10 seconds this time!' },
+  { keyword: 'fluency', reminder: 'Try to speak for at least 10 seconds this time!' },
+];
+
+function getFocusReminder(teacherNote: TeacherNote | null): string | null {
+  if (!teacherNote) return null;
+  const text = `${teacherNote.title} ${teacherNote.detail}`.toLowerCase();
+  const match = FOCUS_REMINDERS.find((entry) => text.includes(entry.keyword));
+  return match?.reminder ?? null;
+}
+
+/**
+ * Generates the next question by reacting to the student's actual previous
+ * transcript when possible (extracting a topic and slotting it into a
+ * level-appropriate follow-up), falling back to the canned challenge bank
+ * when the transcript is empty or has no usable content word. Occasionally
+ * appends a reminder tied to the active Teacher Focus note.
+ */
+export function generateAdaptiveChallenge(
+  cefrLevel: CEFRLevel,
+  levelBand: LevelBand,
+  turnIndex: number,
+  previousTranscript: string,
+  teacherNote: TeacherNote | null = null,
+): string {
+  const wordCount = previousTranscript.trim() ? previousTranscript.trim().split(/\s+/).length : 0;
+
+  let question: string;
+  if (wordCount > 0 && wordCount < 4) {
+    question = `Could you tell me a bit more about that? ${generateNextChallenge(cefrLevel, turnIndex)}`;
+  } else {
+    const topic = extractTopic(previousTranscript);
+    if (topic) {
+      const templates = REACTIVE_TEMPLATES_BY_BAND[levelBand];
+      const template = templates[turnIndex % templates.length];
+      question = template.replace('{topic}', topic);
+    } else {
+      question = generateNextChallenge(cefrLevel, turnIndex);
+    }
+  }
+
+  // Nudge toward the teacher's focus roughly every other turn, so it's a
+  // recurring cue rather than either absent or exhausting.
+  if (turnIndex % 2 === 1) {
+    const reminder = getFocusReminder(teacherNote);
+    if (reminder) question = `${question} ${reminder}`;
+  }
+
+  return question;
+}
+
+// ============================================================================
 // Mock pronunciation/grammar feedback per level
 // ============================================================================
 // Each level has one canned "imagined transcript" with a couple of words

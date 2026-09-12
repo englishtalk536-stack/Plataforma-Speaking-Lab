@@ -2,13 +2,15 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronDown, Sparkles } from 'lucide-react';
+import { ChevronDown, Sparkles, Volume2, VolumeX } from 'lucide-react';
 
 export interface VoiceAssistantCardProps {
   challengeText: string;
   grammarFocus: string[];
-  /** true while the AI's voice is "speaking" the challenge — drives the waveform. */
+  /** true while the AI's voice is actually speaking (from useSpeechSynthesis) — drives the waveform. */
   isSpeaking: boolean;
+  isMuted: boolean;
+  onToggleMute: () => void;
   className?: string;
 }
 
@@ -51,14 +53,33 @@ function Waveform({ active }: { active: boolean }) {
  * active CEFR band) alongside a waveform for its "voice", plus grammar
  * hints the student can expand without them cluttering the question itself.
  */
-export function VoiceAssistantCard({ challengeText, grammarFocus, isSpeaking, className = '' }: VoiceAssistantCardProps) {
+export function VoiceAssistantCard({
+  challengeText,
+  grammarFocus,
+  isSpeaking,
+  isMuted,
+  onToggleMute,
+  className = '',
+}: VoiceAssistantCardProps) {
   const [tipsOpen, setTipsOpen] = useState(false);
 
   return (
     <div className={`rounded-2xl border border-speaking-cobalt/10 bg-speaking-white p-6 shadow-sm ${className}`}>
-      <div className="flex items-center gap-2 text-speaking-king">
-        <Sparkles className="h-4 w-4" aria-hidden="true" />
-        <span className="font-body text-xs font-semibold">Your AI conversation partner</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-speaking-king">
+          <Sparkles className="h-4 w-4" aria-hidden="true" />
+          <span className="font-body text-xs font-semibold">Your AI conversation partner</span>
+        </div>
+
+        <button
+          type="button"
+          onClick={onToggleMute}
+          aria-pressed={isMuted}
+          aria-label={isMuted ? 'Unmute AI voice' : 'Mute AI voice'}
+          className="rounded-full p-1.5 text-speaking-cobalt/50 transition-colors hover:bg-speaking-cobalt/5 hover:text-speaking-cobalt"
+        >
+          {isMuted ? <VolumeX className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
+        </button>
       </div>
 
       <Waveform active={isSpeaking} />
