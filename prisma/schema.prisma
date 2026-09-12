@@ -1,0 +1,343 @@
+// ============================================================================
+// SpeakingLab — Prisma Schema
+// Plataforma de aprendizaje gamificada e interactiva de inglés
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum XpSource {
+  CLASS_ATTENDANCE
+  DAILY_VOICE_QUEST
+  AI_PRACTICE
+  TEACHER_REWARD
+  MODULE_EVALUATION
+  SYSTEM_BONUS
+}
+
+enum NodeStatus {
+  LOCKED
+  UNLOCKED
+  COMPLETED
+}
+
+enum ItemType {
+  LESSON_VOUCHER
+  STREAK_FREEZE
+  WORKSHOP_PASS
+  CUSTOM_AVATAR
+}
+
+enum InventoryStatus {
+  AVAILABLE
+  REDEEMED
+  EXPIRED
+}
+
+enum ScenarioType {
+  ROLEPLAY_CAFE
+  JOB_INTERVIEW
+  AIRPORT_CHECKIN
+  FREE_TALK
+  BUSINESS_NEGOTIATION
+}
+
+enum ConversationStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+enum MessageSender {
+  USER
+  AI
+}
+
+enum BookingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+// ============================================================================
+// USERS & GAMIFICATION CORE
+// ============================================================================
+
+model User {
+  id           String  @id @default(uuid())
+  email        String  @unique
+  passwordHash String? @map("password_hash")
+  fullName     String  @map("full_name")
+  avatarUrl    String? @map("avatar_url")
+  role         Role    @default(STUDENT)
+
+  level     Int @default(1)
+  currentXp Int @default(0) @map("current_xp")
+  coins     Int @default(0)
+
+  // Feedback Radar (escala 0-100)
+  radarFluency      Float @default(0) @map("radar_fluency")
+  radarGrammar      Float @default(0) @map("radar_grammar")
+  radarPronunciation Float @default(0) @map("radar_pronunciation")
+  radarVocabulary   Float @default(0) @map("radar_vocabulary")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  streak              Streak?
+  xpLogs              XpLog[]
+  userBadges          UserBadge[]
+  skillProgress       UserSkillProgress[]
+  inventory           UserInventory[]
+  aiConversations     AiConversation[]
+  bookingsAsStudent   ClassBooking[]       @relation("StudentBookings")
+  bookingsAsTeacher   ClassBooking[]       @relation("TeacherBookings")
+
+  @@index([role])
+  @@map("users")
+}
+
+model Streak {
+  id                String   @id @default(uuid())
+  userId            String   @unique @map("user_id")
+  currentStreak     Int      @default(0) @map("current_streak")
+  maxStreak         Int      @default(0) @map("max_streak")
+  lastActivityDate  DateTime @map("last_activity_date")
+  freezeCredits     Int      @default(0) @map("freeze_credits")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("streaks")
+}
+
+model XpLog {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  xpAmount   Int      @map("xp_amount")
+  sourceType XpSource @map("source_type")
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([userId, sourceType])
+  @@map("xp_logs")
+}
+
+// ============================================================================
+// BADGES / ACHIEVEMENTS
+// ============================================================================
+
+model Badge {
+  id            String @id @default(uuid())
+  title         String
+  description   String
+  iconUrl       String @map("icon_url")
+  conditionType String @map("condition_type")
+  conditionValue Int   @map("condition_value")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  userBadges UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  badgeId    String   @map("badge_id")
+  unlockedAt DateTime @default(now()) @map("unlocked_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+  @@index([badgeId])
+  @@map("user_badges")
+}
+
+// ============================================================================
+// SKILL TREE
+// ============================================================================
+
+model SkillNode {
+  id            String  @id @default(uuid())
+  title         String
+  description   String
+  levelRequired Int     @map("level_required")
+  parentNodeId  String? @map("parent_node_id")
+  xpReward      Int     @map("xp_reward")
+  positionX     Float   @map("position_x")
+  positionY     Float   @map("position_y")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  parentNode SkillNode?  @relation("SkillNodeHierarchy", fields: [parentNodeId], references: [id], onDelete: SetNull)
+  children   SkillNode[] @relation("SkillNodeHierarchy")
+
+  userProgress UserSkillProgress[]
+
+  @@index([parentNodeId])
+  @@map("skill_nodes")
+}
+
+model UserSkillProgress {
+  id          String     @id @default(uuid())
+  userId      String     @map("user_id")
+  nodeId      String     @map("node_id")
+  status      NodeStatus @default(LOCKED)
+  completedAt DateTime?  @map("completed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node SkillNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, nodeId])
+  @@index([userId])
+  @@index([nodeId])
+  @@map("user_skill_progress")
+}
+
+// ============================================================================
+// STORE / COIN REDEMPTION
+// ============================================================================
+
+model StoreItem {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  costCoins   Int      @map("cost_coins")
+  itemType    ItemType @map("item_type")
+  imageUrl    String?  @map("image_url")
+  isActive    Boolean  @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  inventoryEntries UserInventory[]
+
+  @@index([isActive])
+  @@map("store_items")
+}
+
+model UserInventory {
+  id           String          @id @default(uuid())
+  userId       String          @map("user_id")
+  itemId       String          @map("item_id")
+  status       InventoryStatus @default(AVAILABLE)
+  purchasedAt  DateTime        @default(now()) @map("purchased_at")
+  redeemedAt   DateTime?       @map("redeemed_at")
+
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item StoreItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([itemId])
+  @@index([userId, status])
+  @@map("user_inventory")
+}
+
+// ============================================================================
+// AI PRACTICE (AUTONOMOUS CONVERSATION)
+// ============================================================================
+
+model AiConversation {
+  id           String              @id @default(uuid())
+  userId       String              @map("user_id")
+  scenarioType ScenarioType        @map("scenario_type")
+  status       ConversationStatus  @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AiMessage[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id             String        @id @default(uuid())
+  conversationId String        @map("conversation_id")
+  sender         MessageSender
+  textContent    String        @map("text_content")
+  audioUrl       String?       @map("audio_url")
+  feedback       Json?
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("ai_messages")
+}
+
+// ============================================================================
+// CLASSES & TEACHER FEEDBACK
+// ============================================================================
+
+model ClassBooking {
+  id           String        @id @default(uuid())
+  studentId    String        @map("student_id")
+  teacherId    String        @map("teacher_id")
+  scheduledAt  DateTime      @map("scheduled_at")
+  status       BookingStatus @default(SCHEDULED)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  student  User             @relation("StudentBookings", fields: [studentId], references: [id], onDelete: Cascade)
+  teacher  User             @relation("TeacherBookings", fields: [teacherId], references: [id], onDelete: Cascade)
+  feedback TeacherFeedback?
+
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([scheduledAt])
+  @@index([studentId, status])
+  @@map("class_bookings")
+}
+
+model TeacherFeedback {
+  id                 String   @id @default(uuid())
+  bookingId          String   @unique @map("booking_id")
+  fluencyScore       Float    @map("fluency_score")
+  grammarScore       Float    @map("grammar_score")
+  pronunciationScore Float    @map("pronunciation_score")
+  vocabularyScore    Float    @map("vocabulary_score")
+  comment            String?
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  booking ClassBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("teacher_feedback")
+}

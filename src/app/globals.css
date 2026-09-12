@@ -1,0 +1,40 @@
+@config "../../tailwind.config.ts";
+@import "tailwindcss";
+
+:root {
+  --font-anton: 'Anton', sans-serif;
+  --color-speaking-cobalt: #0D1B2A;
+  --color-speaking-mustard: #EAB135;
+  --color-speaking-background: #F4F6F8;
+  --color-speaking-card: #FFFFFF;
+  --color-speaking-border: #D9E0E7;
+}
+
+html {
+  font-family: 'Tahoma', 'Verdana', 'Segoe UI', sans-serif;
+}
+
+body {
+  font-family: 'Tahoma', 'Verdana', 'Segoe UI', sans-serif;
+  background-color: var(--color-speaking-background);
+  color: var(--color-speaking-cobalt);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-anton);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
