@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronDown, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { ChevronDown, Repeat, Sparkles, Volume2, VolumeX } from 'lucide-react';
 
 export interface VoiceAssistantCardProps {
   challengeText: string;
@@ -11,6 +11,8 @@ export interface VoiceAssistantCardProps {
   isSpeaking: boolean;
   isMuted: boolean;
   onToggleMute: () => void;
+  /** Replays the current challenge via SpeechSynthesis. Disabled while already speaking or muted. */
+  onReplay: () => void;
   className?: string;
 }
 
@@ -59,6 +61,7 @@ export function VoiceAssistantCard({
   isSpeaking,
   isMuted,
   onToggleMute,
+  onReplay,
   className = '',
 }: VoiceAssistantCardProps) {
   const [tipsOpen, setTipsOpen] = useState(false);
@@ -71,15 +74,28 @@ export function VoiceAssistantCard({
           <span className="font-body text-xs font-semibold">Your AI conversation partner</span>
         </div>
 
-        <button
-          type="button"
-          onClick={onToggleMute}
-          aria-pressed={isMuted}
-          aria-label={isMuted ? 'Unmute AI voice' : 'Mute AI voice'}
-          className="rounded-full p-1.5 text-speaking-cobalt/50 transition-colors hover:bg-speaking-cobalt/5 hover:text-speaking-cobalt"
-        >
-          {isMuted ? <VolumeX className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onReplay}
+            disabled={isSpeaking || isMuted}
+            aria-label="Listen again"
+            title={isMuted ? 'Unmute to listen again' : 'Listen again'}
+            className="rounded-full p-1.5 text-speaking-cobalt/50 transition-colors hover:bg-speaking-cobalt/5 hover:text-speaking-cobalt disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+          >
+            <Repeat className="h-4 w-4" aria-hidden="true" />
+          </button>
+
+          <button
+            type="button"
+            onClick={onToggleMute}
+            aria-pressed={isMuted}
+            aria-label={isMuted ? 'Unmute AI voice' : 'Mute AI voice'}
+            className="rounded-full p-1.5 text-speaking-cobalt/50 transition-colors hover:bg-speaking-cobalt/5 hover:text-speaking-cobalt"
+          >
+            {isMuted ? <VolumeX className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
+          </button>
+        </div>
       </div>
 
       <Waveform active={isSpeaking} />

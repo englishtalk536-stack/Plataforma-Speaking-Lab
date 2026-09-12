@@ -89,6 +89,11 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+/** Converts a feedback delta into the 0-100 scale used by the radar. */
+export function deltaToRadarScale(delta: number): number {
+  return Math.min(100, Math.max(0, 50 + delta * 10));
+}
+
 /** Maps a few keywords a teacher might write in a note to the `focusTags` used above. */
 function extractFocusTags(teacherNote: TeacherNote | null): string[] {
   if (!teacherNote) return [];

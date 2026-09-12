@@ -1,10 +1,15 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { Pause, Play } from 'lucide-react';
 import type { MockFeedback } from '../../lib/ai/practice-context';
+import { deltaToRadarScale } from '../../lib/ai/evaluate-transcript';
 
 export interface PronunciationFeedbackProps {
   feedback: MockFeedback;
+  /** Object URL for this turn's recorded audio, from useSpeechRecognition. Null hides the playback button (unsupported browser, or a typed answer). */
+  audioUrl: string | null;
   onContinue: () => void;
   className?: string;
 }
@@ -28,13 +33,53 @@ function ScoreGauge({ label, score }: { label: string; score: number }) {
   );
 }
 
+/** Compact play/pause button driving a hidden <audio> element, for the student to hear back what they just said. */
+function PlaybackButton({ audioUrl }: { audioUrl: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  function toggle() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlaying) {
+      audio.pause();
+    } else {
+      void audio.play();
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className="flex items-center gap-2 rounded-full border border-speaking-king/30 bg-speaking-king/5 px-3 py-1.5 font-body text-xs font-semibold text-speaking-king transition-colors hover:bg-speaking-king/10"
+    >
+      {isPlaying ? <Pause className="h-3.5 w-3.5" aria-hidden="true" /> : <Play className="h-3.5 w-3.5" aria-hidden="true" />}
+      <span>{isPlaying ? 'Playing your answer…' : 'Listen to your answer'}</span>
+      <audio
+        ref={audioRef}
+        src={audioUrl}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+        className="hidden"
+      />
+    </button>
+  );
+}
+
 /**
  * Shows the evaluation for the turn just recorded: a word-by-word
  * breakdown (green for correct, mustard/orange for pronunciation to fix),
- * grammar/pronunciation scores for this turn, and the small Feedback Radar
- * gains (fluency, vocabulary) it contributes.
+ * and this module's three oral-skill scores — Pronunciation, Fluency, and
+ * Vocabulary. Grammar is intentionally not shown here: this playground is
+ * scoped to oral skills, so grammar mistake-detection still runs (it feeds
+ * the tip text) but isn't surfaced as its own metric.
  */
-export function PronunciationFeedback({ feedback, onContinue, className = '' }: PronunciationFeedbackProps) {
+export function PronunciationFeedback({ feedback, audioUrl, onContinue, className = '' }: PronunciationFeedbackProps) {
+  const fluencyScore = Math.round(deltaToRadarScale(feedback.fluencyDelta));
+  const vocabularyScore = Math.round(deltaToRadarScale(feedback.vocabularyDelta));
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -42,7 +87,10 @@ export function PronunciationFeedback({ feedback, onContinue, className = '' }: 
       transition={{ duration: 0.35, ease: 'easeOut' }}
       className={`rounded-2xl border border-speaking-cobalt/10 bg-speaking-white p-6 shadow-sm ${className}`}
     >
-      <p className="font-title text-lg text-speaking-cobalt">Here&apos;s how that sounded</p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-title text-lg text-speaking-cobalt">Here&apos;s how that sounded</p>
+        {audioUrl && <PlaybackButton audioUrl={audioUrl} />}
+      </div>
 
       <p className="mt-3 flex flex-wrap gap-x-1.5 gap-y-1 font-body text-base leading-relaxed">
         {feedback.transcript.map((word, index) => (
@@ -59,18 +107,10 @@ export function PronunciationFeedback({ feedback, onContinue, className = '' }: 
         {feedback.tip}
       </p>
 
-      <div className="mt-5 grid grid-cols-2 gap-4">
-        <ScoreGauge label="Grammar" score={feedback.grammarScore} />
+      <div className="mt-5 grid grid-cols-3 gap-4">
         <ScoreGauge label="Pronunciation" score={feedback.pronunciationScore} />
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <span className="rounded-full bg-speaking-success/10 px-3 py-1 font-body text-xs font-semibold text-speaking-success">
-          Fluency +{feedback.fluencyDelta}
-        </span>
-        <span className="rounded-full bg-speaking-success/10 px-3 py-1 font-body text-xs font-semibold text-speaking-success">
-          Vocabulary +{feedback.vocabularyDelta}
-        </span>
+        <ScoreGauge label="Fluency" score={fluencyScore} />
+        <ScoreGauge label="Vocabulary" score={vocabularyScore} />
       </div>
 
       <button
