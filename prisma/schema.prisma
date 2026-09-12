@@ -199,6 +199,8 @@ model SkillNode {
   levelRequired Int     @map("level_required")
   parentNodeId  String? @map("parent_node_id")
   xpReward      Int     @map("xp_reward")
+  /** Speaking Coins awarded for completing this node's lesson. Added to support end-of-lesson rewards in the Speaking Playground. */
+  coinReward    Int     @default(0) @map("coin_reward")
   positionX     Float   @map("position_x")
   positionY     Float   @map("position_y")
 

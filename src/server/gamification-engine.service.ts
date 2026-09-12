@@ -86,6 +86,10 @@ const OVERRIDABLE_XP_SOURCES = new Set<XpSource>([
   XpSource.TEACHER_REWARD,
   XpSource.DAILY_VOICE_QUEST,
   XpSource.SYSTEM_BONUS,
+  // MODULE_EVALUATION's base (200) is a fallback only — real lesson
+  // completions pass the specific SkillNode's `xpReward` as customXp, since
+  // that varies per node (see /api/student/lesson/complete).
+  XpSource.MODULE_EVALUATION,
 ]);
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;

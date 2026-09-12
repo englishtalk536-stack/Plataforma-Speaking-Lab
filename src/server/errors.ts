@@ -36,6 +36,13 @@ export class QuestNotAvailableError extends DashboardApiError {
   }
 }
 
+export class LessonNotAvailableError extends DashboardApiError {
+  constructor(nodeId: string) {
+    super(`No completable lesson progress found for node ${nodeId}.`, 409);
+    this.name = 'LessonNotAvailableError';
+  }
+}
+
 /** Today's date normalized to UTC midnight — matches how `assignedDate` is stored on UserDailyQuest. */
 export function todayUtcMidnight(): Date {
   const now = new Date();

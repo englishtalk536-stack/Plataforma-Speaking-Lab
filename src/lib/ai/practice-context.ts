@@ -178,10 +178,21 @@ const CHALLENGES_BY_LEVEL: Record<CEFRLevel, string[]> = {
   ],
 };
 
-/** Deterministically cycles through that level's challenge bank by turn index. */
-export function generateNextChallenge(cefrLevel: CEFRLevel, turnIndex: number): string {
+/**
+ * Deterministically cycles through that level's challenge bank by turn
+ * index. When `previousWordCount` is provided and very low (the student
+ * barely answered), the question is prefixed with a gentle nudge to
+ * elaborate — a small, honest adaptation to what was actually said,
+ * short of full conversational reasoning (that's what AiPracticeService +
+ * a real model call would add later).
+ */
+export function generateNextChallenge(cefrLevel: CEFRLevel, turnIndex: number, previousWordCount?: number): string {
   const bank = CHALLENGES_BY_LEVEL[cefrLevel];
-  return bank[turnIndex % bank.length];
+  const next = bank[turnIndex % bank.length];
+  if (previousWordCount !== undefined && previousWordCount > 0 && previousWordCount < 4) {
+    return `Could you tell me a bit more about that? ${next}`;
+  }
+  return next;
 }
 
 // ============================================================================

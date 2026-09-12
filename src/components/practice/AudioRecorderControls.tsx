@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Ear, Loader2, Mic, Square } from 'lucide-react';
 
@@ -8,11 +7,15 @@ export type RecorderStatus = 'idle' | 'recording' | 'processing' | 'listening';
 
 export interface AudioRecorderControlsProps {
   status: RecorderStatus;
+  /** Live microphone amplitude, 0-1, from useSpeechRecognition. Ignored outside 'recording'. */
+  volumeLevel: number;
   onToggleRecord: () => void;
   className?: string;
 }
 
-const VOLUME_BAR_COUNT = 5;
+// Per-bar sensitivity multipliers so a single amplitude reading still reads
+// as an organic waveform rather than 5 identical bars moving in lockstep.
+const BAR_SENSITIVITY = [0.6, 0.85, 1, 0.85, 0.6];
 
 const STATUS_LABEL: Record<RecorderStatus, string> = {
   idle: 'Tap to answer',
@@ -21,41 +24,18 @@ const STATUS_LABEL: Record<RecorderStatus, string> = {
   listening: 'Listening to the AI…',
 };
 
-/**
- * Simulates a live input-volume meter while `status === 'recording'` (no
- * real microphone analysis in this mock — see practice-context.ts for why).
- * Bars settle back to a flat baseline the instant recording stops.
- */
-function useSimulatedVolume(status: RecorderStatus): number[] {
-  const [levels, setLevels] = useState<number[]>(() => Array(VOLUME_BAR_COUNT).fill(0.15));
-
-  useEffect(() => {
-    if (status !== 'recording') {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setLevels(Array.from({ length: VOLUME_BAR_COUNT }, () => 0.25 + Math.random() * 0.75));
-    }, 160);
-
-    return () => clearInterval(interval);
-  }, [status]);
-
-  return status === 'recording' ? levels : Array(VOLUME_BAR_COUNT).fill(0.15);
-}
-
-export function AudioRecorderControls({ status, onToggleRecord, className = '' }: AudioRecorderControlsProps) {
-  const volumeLevels = useSimulatedVolume(status);
+export function AudioRecorderControls({ status, volumeLevel, onToggleRecord, className = '' }: AudioRecorderControlsProps) {
   const isBusy = status === 'processing' || status === 'listening';
+  const effectiveVolume = status === 'recording' ? volumeLevel : 0.05;
 
   return (
     <div className={`flex flex-col items-center gap-3 ${className}`}>
       <div className="flex h-8 items-end gap-1" aria-hidden="true">
-        {volumeLevels.map((level, index) => (
+        {BAR_SENSITIVITY.map((sensitivity, index) => (
           <span
             key={index}
-            className="w-1.5 rounded-full bg-speaking-mustard transition-[height] duration-150"
-            style={{ height: `${Math.round(level * 32)}px` }}
+            className="w-1.5 rounded-full bg-speaking-mustard transition-[height] duration-100"
+            style={{ height: `${Math.max(4, Math.round(effectiveVolume * sensitivity * 32))}px` }}
           />
         ))}
       </div>
