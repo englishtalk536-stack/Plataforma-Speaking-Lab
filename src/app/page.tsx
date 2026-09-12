@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { SidebarNav } from '../components/dashboard/SidebarNav';
 import { StudentHeader } from '../components/dashboard/StudentHeader';
 import { SkillPath } from '../components/dashboard/SkillPath';
@@ -14,6 +15,7 @@ import { getXpRequiredForLevel } from '../lib/gamification/xp-formula';
 import type { SkillPathNodeDto, StudentDashboardResponse } from '../lib/types/dashboard';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { dashboard, error, isLoading, mutate } = useDashboardData();
 
   const [selectedNode, setSelectedNode] = useState<SkillPathNodeDto | null>(null);
@@ -69,9 +71,7 @@ export default function DashboardPage() {
   }
 
   function handleStartLesson(node: SkillPathNodeDto) {
-    // Hook this up to the real lesson/AI-practice flow (e.g. router.push(`/practice/${node.id}`)).
-    console.log('Starting lesson for node', node.id);
-    setSelectedNode(null);
+    router.push(`/practice/${node.id}`);
   }
 
   return (
