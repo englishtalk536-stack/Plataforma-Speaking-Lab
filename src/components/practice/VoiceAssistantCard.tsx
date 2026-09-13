@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronDown, Repeat, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { ChevronDown, Ear, Eye, Repeat, Sparkles, Turtle, Volume2, VolumeX } from 'lucide-react';
 
 export interface VoiceAssistantCardProps {
   challengeText: string;
@@ -11,8 +11,18 @@ export interface VoiceAssistantCardProps {
   isSpeaking: boolean;
   isMuted: boolean;
   onToggleMute: () => void;
-  /** Replays the current challenge via SpeechSynthesis. Disabled while already speaking or muted. */
+  /** Replays the current challenge at normal speed. Disabled while already speaking or muted. */
   onReplay: () => void;
+  /** Replays the current challenge at ~0.75x speed. Disabled while already speaking or muted. */
+  onReplaySlower: () => void;
+  /**
+   * "Listening First" mode: the question text stays hidden until this is
+   * true — the student is meant to rely on the audio, not read along. Set
+   * by the parent after 3 failed attempts, or by the student tapping
+   * "Reveal text" below.
+   */
+  isTextRevealed: boolean;
+  onRevealText: () => void;
   className?: string;
 }
 
@@ -51,9 +61,13 @@ function Waveform({ active }: { active: boolean }) {
 }
 
 /**
- * Presents the AI's current challenge (in-character question driven by the
- * active CEFR band) alongside a waveform for its "voice", plus grammar
- * hints the student can expand without them cluttering the question itself.
+ * Presents the AI's current challenge as audio-first: the question text is
+ * hidden by default ("Listening First" mode) so the student practices
+ * listening comprehension instead of reading along, with normal-speed and
+ * slowed-down replay controls to compensate. Grammar hints stay available
+ * underneath, entirely decoupled from the hidden question and from any
+ * scoring — they're a quick conceptual reference, not part of the
+ * evaluation the results screen shows.
  */
 export function VoiceAssistantCard({
   challengeText,
@@ -62,9 +76,13 @@ export function VoiceAssistantCard({
   isMuted,
   onToggleMute,
   onReplay,
+  onReplaySlower,
+  isTextRevealed,
+  onRevealText,
   className = '',
 }: VoiceAssistantCardProps) {
   const [tipsOpen, setTipsOpen] = useState(false);
+  const replayDisabled = isSpeaking || isMuted;
 
   return (
     <div className={`rounded-2xl border border-speaking-cobalt/10 bg-speaking-white p-6 shadow-sm ${className}`}>
@@ -78,12 +96,23 @@ export function VoiceAssistantCard({
           <button
             type="button"
             onClick={onReplay}
-            disabled={isSpeaking || isMuted}
+            disabled={replayDisabled}
             aria-label="Listen again"
             title={isMuted ? 'Unmute to listen again' : 'Listen again'}
             className="rounded-full p-1.5 text-speaking-cobalt/50 transition-colors hover:bg-speaking-cobalt/5 hover:text-speaking-cobalt disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
           >
             <Repeat className="h-4 w-4" aria-hidden="true" />
+          </button>
+
+          <button
+            type="button"
+            onClick={onReplaySlower}
+            disabled={replayDisabled}
+            aria-label="Listen again, slower"
+            title={isMuted ? 'Unmute to listen again' : 'Listen again, slower'}
+            className="rounded-full p-1.5 text-speaking-cobalt/50 transition-colors hover:bg-speaking-cobalt/5 hover:text-speaking-cobalt disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+          >
+            <Turtle className="h-4 w-4" aria-hidden="true" />
           </button>
 
           <button
@@ -100,7 +129,22 @@ export function VoiceAssistantCard({
 
       <Waveform active={isSpeaking} />
 
-      <p className="text-center font-title text-lg leading-snug text-speaking-cobalt">{challengeText}</p>
+      {isTextRevealed ? (
+        <p className="text-center font-title text-lg leading-snug text-speaking-cobalt">{challengeText}</p>
+      ) : (
+        <div className="flex flex-col items-center gap-2 py-1">
+          <Ear className="h-6 w-6 text-speaking-cobalt/30" aria-hidden="true" />
+          <p className="font-body text-sm text-speaking-cobalt/50">Listen carefully — no text this time.</p>
+          <button
+            type="button"
+            onClick={onRevealText}
+            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 font-body text-xs font-semibold text-speaking-cobalt/50 hover:bg-speaking-cobalt/5 hover:text-speaking-king"
+          >
+            <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Reveal text</span>
+          </button>
+        </div>
+      )}
 
       <div className="mt-5 border-t border-speaking-cobalt/10 pt-4">
         <button

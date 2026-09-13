@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { XpSource } from '@prisma/client';
 import { prisma } from '../../../../../lib/prisma';
 import { getCurrentUserId } from '../../../../../lib/auth';
-import { GamificationEngineService } from '../../../../../server/gamification-engine.service';
+import { GamificationEngineService, type ProcessEventResult } from '../../../../../server/gamification-engine.service';
 import { blendRadarScore } from '../../../../../lib/gamification/radar-blend';
 import {
   DashboardApiError,
@@ -29,7 +29,10 @@ export async function POST(request: NextRequest) {
         include: { node: true },
       });
 
-      if (!progress || progress.status === 'COMPLETED') {
+      // No assigned progress row at all means this node isn't part of the
+      // student's curriculum yet — that's a genuine error, unlike replaying
+      // a lesson they already finished (handled just below).
+      if (!progress) {
         throw new LessonNotAvailableError(nodeId);
       }
 
@@ -38,23 +41,49 @@ export async function POST(request: NextRequest) {
         throw new LessonNotAvailableError(nodeId);
       }
 
-      const gamification = await gamificationEngine.applyEventWithinTransaction(tx, {
-        userId,
-        eventType: XpSource.MODULE_EVALUATION,
-        metadata: { nodeId, customXp: progress.node.xpReward },
-        coinsAwarded: progress.node.coinReward,
-      });
+      // Re-entering a completed node (e.g. node-1) is a valid practice
+      // replay, not an error: skip the XP/coin grant (already earned once)
+      // instead of throwing, but still refresh the Feedback Radar from this
+      // session's performance so extra practice keeps having an effect.
+      const isReplay = progress.status === 'COMPLETED';
 
-      await tx.userSkillProgress.update({
-        where: { id: progress.id },
-        data: { status: 'COMPLETED', completedAt: new Date() },
-      });
+      let gamification: ProcessEventResult;
+      if (isReplay) {
+        const streak = await tx.streak.findUnique({ where: { userId } });
+        gamification = {
+          xpEarned: 0,
+          newTotalXp: userBefore.currentXp,
+          currentLevel: userBefore.level,
+          didLevelUp: false,
+          streakUpdated: false,
+          currentStreak: streak?.currentStreak ?? 0,
+          coinsEarned: 0,
+          newTotalCoins: userBefore.coins,
+        };
+      } else {
+        gamification = await gamificationEngine.applyEventWithinTransaction(tx, {
+          userId,
+          eventType: XpSource.MODULE_EVALUATION,
+          metadata: { nodeId, customXp: progress.node.xpReward },
+          coinsAwarded: progress.node.coinReward,
+        });
+
+        await tx.userSkillProgress.update({
+          where: { id: progress.id },
+          data: { status: 'COMPLETED', completedAt: new Date() },
+        });
+      }
 
       const updatedUser = await tx.user.update({
         where: { id: userId },
         data: {
           radarFluency: blendRadarScore(userBefore.radarFluency, sessionMetrics.fluency),
-          radarGrammar: blendRadarScore(userBefore.radarGrammar, sessionMetrics.grammar),
+          // Grammar is optional: this module doesn't score it (see LessonSessionMetrics), so
+          // when it's absent, leave the student's existing grammar radar value untouched.
+          radarGrammar:
+            sessionMetrics.grammar !== undefined
+              ? blendRadarScore(userBefore.radarGrammar, sessionMetrics.grammar)
+              : userBefore.radarGrammar,
           radarPronunciation: blendRadarScore(userBefore.radarPronunciation, sessionMetrics.pronunciation),
           radarVocabulary: blendRadarScore(userBefore.radarVocabulary, sessionMetrics.vocabulary),
         },
@@ -62,7 +91,8 @@ export async function POST(request: NextRequest) {
 
       // Unlock any direct child nodes the student now qualifies for (by
       // level), so the Skill Path reflects progress immediately instead of
-      // requiring a separate "unlock" step or page reload logic.
+      // requiring a separate "unlock" step or page reload logic. Harmless
+      // to re-run on a replay — it's idempotent.
       const childSkillNodes = await tx.skillNode.findMany({ where: { parentNodeId: nodeId } });
       for (const child of childSkillNodes) {
         const childProgress = await tx.userSkillProgress.findFirst({ where: { userId, nodeId: child.id } });
@@ -77,7 +107,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      return { gamification, updatedUser };
+      return { gamification, updatedUser, isReplay };
     });
 
     const response: CompleteLessonResponse = {
@@ -89,6 +119,7 @@ export async function POST(request: NextRequest) {
       currentStreak: result.gamification.currentStreak,
       coinsEarned: result.gamification.coinsEarned,
       newTotalCoins: result.gamification.newTotalCoins,
+      alreadyCompleted: result.isReplay,
       updatedRadar: {
         fluency: result.updatedUser.radarFluency,
         grammar: result.updatedUser.radarGrammar,
@@ -123,13 +154,13 @@ async function parseBody(request: NextRequest): Promise<CompleteLessonRequest> {
   const metrics = body.sessionMetrics as Partial<LessonSessionMetrics> | undefined;
   if (
     !metrics ||
-    typeof metrics.grammar !== 'number' ||
     typeof metrics.pronunciation !== 'number' ||
     typeof metrics.fluency !== 'number' ||
-    typeof metrics.vocabulary !== 'number'
+    typeof metrics.vocabulary !== 'number' ||
+    (metrics.grammar !== undefined && typeof metrics.grammar !== 'number')
   ) {
     throw new InvalidRequestError(
-      'Request body must include "sessionMetrics" with numeric grammar, pronunciation, fluency, and vocabulary.',
+      'Request body must include "sessionMetrics" with numeric pronunciation, fluency, and vocabulary (grammar is optional).',
     );
   }
 

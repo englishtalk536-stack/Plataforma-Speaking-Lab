@@ -45,6 +45,9 @@ export interface MockFeedback {
   pronunciationScore: number;
   fluencyDelta: number;
   vocabularyDelta: number;
+  fluencyScore?: number;
+  vocabularyScore?: number;
+  isOffTopic?: boolean;
   tip: string;
 }
 

@@ -39,7 +39,7 @@ async function main() {
   // --------------------------------------------------------------------
   const basicGreetings = await prisma.skillNode.upsert({
     where: { id: '00000000-0000-0000-0000-000000000001' },
-    update: {},
+    update: { coinReward: 10 },
     create: {
       id: '00000000-0000-0000-0000-000000000001',
       title: 'Basic Greetings',
@@ -47,6 +47,7 @@ async function main() {
       levelRequired: 1,
       parentNodeId: null,
       xpReward: 50,
+      coinReward: 10,
       positionX: 0,
       positionY: 0,
     },
@@ -54,7 +55,7 @@ async function main() {
 
   const orderingFood = await prisma.skillNode.upsert({
     where: { id: '00000000-0000-0000-0000-000000000002' },
-    update: {},
+    update: { coinReward: 15 },
     create: {
       id: '00000000-0000-0000-0000-000000000002',
       title: 'Ordering Food',
@@ -62,6 +63,7 @@ async function main() {
       levelRequired: 2,
       parentNodeId: basicGreetings.id,
       xpReward: 75,
+      coinReward: 15,
       positionX: 1,
       positionY: 0,
     },
@@ -69,7 +71,7 @@ async function main() {
 
   const jobInterviewPrep = await prisma.skillNode.upsert({
     where: { id: '00000000-0000-0000-0000-000000000003' },
-    update: {},
+    update: { coinReward: 25 },
     create: {
       id: '00000000-0000-0000-0000-000000000003',
       title: 'Job Interview Prep',
@@ -77,6 +79,7 @@ async function main() {
       levelRequired: 5,
       parentNodeId: orderingFood.id,
       xpReward: 150,
+      coinReward: 25,
       positionX: 2,
       positionY: 0,
     },
@@ -84,10 +87,73 @@ async function main() {
 
   console.log(`✅ Skill nodes created: ${basicGreetings.title}, ${orderingFood.title}, ${jobInterviewPrep.title}`);
 
+  const travelStories = await prisma.skillNode.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000004' },
+    update: { title: 'Travel Stories', coinReward: 30 },
+    create: {
+      id: '00000000-0000-0000-0000-000000000004',
+      title: 'Travel Stories',
+      description: 'Tell engaging stories about trips, mishaps, and memorable places.',
+      levelRequired: 8,
+      parentNodeId: jobInterviewPrep.id,
+      xpReward: 200,
+      coinReward: 30,
+      positionX: 3,
+      positionY: 0,
+    },
+  });
+  const businessNegotiation = await prisma.skillNode.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000005' },
+    update: { title: 'Business Negotiation', coinReward: 40 },
+    create: {
+      id: '00000000-0000-0000-0000-000000000005',
+      title: 'Business Negotiation',
+      description: 'Negotiate terms, make concessions, and defend your priorities clearly.',
+      levelRequired: 12,
+      parentNodeId: travelStories.id,
+      xpReward: 275,
+      coinReward: 40,
+      positionX: 4,
+      positionY: 0,
+    },
+  });
+  const abstractDebate = await prisma.skillNode.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000006' },
+    update: { title: 'Abstract Debate', coinReward: 50 },
+    create: {
+      id: '00000000-0000-0000-0000-000000000006',
+      title: 'Abstract Debate',
+      description: 'Debate complex ideas with nuance, evidence, and precise transitions.',
+      levelRequired: 16,
+      parentNodeId: businessNegotiation.id,
+      xpReward: 350,
+      coinReward: 50,
+      positionX: 5,
+      positionY: 0,
+    },
+  });
+
+  console.log(`✅ Extended skill path: ${travelStories.title}, ${businessNegotiation.title}, ${abstractDebate.title}`);
+
   await prisma.userSkillProgress.upsert({
     where: { userId_nodeId: { userId: localUser.id, nodeId: basicGreetings.id } },
     update: { status: NodeStatus.COMPLETED },
     create: { userId: localUser.id, nodeId: basicGreetings.id, status: NodeStatus.COMPLETED },
+  });
+  await prisma.userSkillProgress.upsert({
+    where: { userId_nodeId: { userId: localUser.id, nodeId: travelStories.id } },
+    update: { status: NodeStatus.LOCKED },
+    create: { userId: localUser.id, nodeId: travelStories.id, status: NodeStatus.LOCKED },
+  });
+  await prisma.userSkillProgress.upsert({
+    where: { userId_nodeId: { userId: localUser.id, nodeId: businessNegotiation.id } },
+    update: { status: NodeStatus.LOCKED },
+    create: { userId: localUser.id, nodeId: businessNegotiation.id, status: NodeStatus.LOCKED },
+  });
+  await prisma.userSkillProgress.upsert({
+    where: { userId_nodeId: { userId: localUser.id, nodeId: abstractDebate.id } },
+    update: { status: NodeStatus.LOCKED },
+    create: { userId: localUser.id, nodeId: abstractDebate.id, status: NodeStatus.LOCKED },
   });
   await prisma.userSkillProgress.upsert({
     where: { userId_nodeId: { userId: localUser.id, nodeId: orderingFood.id } },

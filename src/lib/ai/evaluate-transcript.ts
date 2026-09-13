@@ -85,6 +85,9 @@ const EXPECTED_MIN_WORDS_BY_LEVEL: Record<CEFRLevel, number> = {
   C2: 13,
 };
 
+const EVASIVE_RESPONSES = /^(repeat( it)? please|please repeat|i don['’]?t know|no idea|hello|hi|hola|repite( por favor)?|no sé|no se)$/i;
+const QUESTION_STOPWORDS = new Set(['what', 'where', 'when', 'why', 'who', 'how', 'which', 'can', 'could', 'would', 'your', 'you', 'tell', 'about', 'the', 'is', 'are', 'do', 'does', 'did', 'have', 'has', 'been', 'for', 'and', 'or', 'to', 'a', 'an', 'me', 'please']);
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -150,6 +153,7 @@ function tagTranscriptWords(
 export interface EvaluateTranscriptInput {
   transcript: string;
   cefrLevel: CEFRLevel;
+  challengeText?: string;
   /** ASR confidence (0-1) averaged across finalized speech results this turn. */
   confidence: number;
   /** Wall-clock recording duration for this turn, in seconds. */
@@ -158,16 +162,32 @@ export interface EvaluateTranscriptInput {
   teacherNote?: TeacherNote | null;
 }
 
+function normalizeWords(text: string): string[] {
+  return text.toLowerCase().replace(/[^a-záéíóúüñ0-9\s]/gi, ' ').split(/\s+/).filter(Boolean);
+}
+
+function isOffTopicResponse(transcript: string, challengeText: string | undefined): boolean {
+  const answer = transcript.trim();
+  if (EVASIVE_RESPONSES.test(normalizeWords(answer).join(' '))) return true;
+  if (!challengeText || answer.split(/\s+/).length < 4) return false;
+
+  const challengeWords = normalizeWords(challengeText).filter((word) => word.length > 3 && !QUESTION_STOPWORDS.has(word));
+  const answerWords = new Set(normalizeWords(answer).filter((word) => word.length > 3));
+  return challengeWords.length > 0 && !challengeWords.some((word) => answerWords.has(word));
+}
+
 /** Builds a `MockFeedback`-shaped result from a real transcript, scored against the target CEFR level and any active teacher focus. */
 export function evaluateTranscript({
   transcript,
   cefrLevel,
+  challengeText,
   confidence,
   durationSeconds,
   teacherNote = null,
 }: EvaluateTranscriptInput): MockFeedback {
   const trimmed = transcript.trim();
   const wordCount = trimmed === '' ? 0 : trimmed.split(/\s+/).filter(Boolean).length;
+  const isOffTopic = isOffTopicResponse(trimmed, challengeText);
 
   // No speech at all: the floor, not the 50 an "unlucky heuristic" might otherwise land on.
   if (wordCount === 0) {
@@ -177,6 +197,9 @@ export function evaluateTranscript({
       pronunciationScore: 15,
       fluencyDelta: 1,
       vocabularyDelta: 1,
+      fluencyScore: 20,
+      vocabularyScore: 15,
+      isOffTopic,
       tip: "I didn't catch a response — try speaking a little closer to the mic, or make sure it's not muted.",
     };
   }
@@ -189,6 +212,9 @@ export function evaluateTranscript({
   const completenessRatio = clamp(wordCount / expectedMinWords, 0, 1);
   // A too-short answer can score at best ~50-95, never a flat 100 — length is part of "correct" at this stage.
   const completenessCeiling = 45 + completenessRatio * 55;
+  // Answers below five words carry too little evidence to justify a high
+  // pronunciation or vocabulary score, even when ASR confidence is high.
+  const shortAnswerCeiling = wordCount < 5 ? 35 + wordCount * 2.5 : completenessCeiling;
 
   const isBrief = wordCount < expectedMinWords;
   const isAmbiguous = confidence > 0 && confidence < 0.55;
@@ -208,15 +234,32 @@ export function evaluateTranscript({
   const expectedWpm = EXPECTED_WORDS_PER_MINUTE_BY_LEVEL[cefrLevel];
   const paceScore = clamp((wordsPerMinute / expectedWpm) * 100, 0, 100);
   const rawPronunciationScore = confidence * 70 + paceScore * 0.3;
-  const pronunciationScore = Math.round(clamp(Math.min(rawPronunciationScore, completenessCeiling), 20, 100));
+  const pronunciationScore = Math.round(clamp(Math.min(rawPronunciationScore, shortAnswerCeiling), 20, 100));
 
   const fluencyDelta = clamp(Math.round((wordsPerMinute / expectedWpm) * 4), 1, 6);
   const uniqueWordCount = new Set(words.map((w) => w.text.toLowerCase().replace(/[.,!?]/g, ''))).size;
-  const vocabularyDelta = clamp(Math.round((uniqueWordCount / expectedMinWords) * 4), 1, 6);
+  const vocabularyDelta = wordCount < 5 ? 0 : clamp(Math.round((uniqueWordCount / expectedMinWords) * 4), 1, 6);
 
-  const tip = buildTip({ isBrief, isAmbiguous, focusedMistake, foundMistakes, expectedMinWords, wordCount, teacherNote });
+  const strictScore = wordCount < 4 || isOffTopic;
+  const calibratedFluencyScore = strictScore ? Math.min(20, Math.round((wordsPerMinute / expectedWpm) * 20)) : Math.round(deltaToRadarScale(fluencyDelta));
+  const calibratedVocabularyScore = strictScore ? Math.min(15, wordCount < 4 ? wordCount * 3 : 15) : Math.round(deltaToRadarScale(vocabularyDelta));
+  const calibratedPronunciationScore = strictScore ? Math.min(30, pronunciationScore) : pronunciationScore;
 
-  return { transcript: words, grammarScore, pronunciationScore, fluencyDelta, vocabularyDelta, tip };
+  const tip = isOffTopic
+    ? 'Tu respuesta no responde a la pregunta realizada. Intenta responder directamente al tema.'
+    : buildTip({ isBrief, isAmbiguous, focusedMistake, foundMistakes, expectedMinWords, wordCount, teacherNote });
+
+  return {
+    transcript: words,
+    grammarScore,
+    pronunciationScore: calibratedPronunciationScore,
+    fluencyDelta,
+    vocabularyDelta,
+    fluencyScore: calibratedFluencyScore,
+    vocabularyScore: calibratedVocabularyScore,
+    isOffTopic,
+    tip,
+  };
 }
 
 function buildTip(args: {

@@ -29,8 +29,8 @@ const STATUS_STYLES: Record<WireNodeStatus, { ring: string; fill: string; icon: 
  * mirrors what "skill tree" actually means for the subject (a sequence of
  * unlocks) instead of a generic content grid.
  *
- * Only CURRENT nodes are clickable (they open the lesson modal); LOCKED and
- * COMPLETED nodes are informational only.
+ * CURRENT and COMPLETED nodes are clickable. Completed nodes reopen the
+ * lesson in review mode, while LOCKED nodes remain informational only.
  */
 export function SkillPath({ nodes, selectedNodeId = null, onSelectNode, className = '' }: SkillPathProps) {
   const width = 320;
@@ -62,7 +62,7 @@ export function SkillPath({ nodes, selectedNodeId = null, onSelectNode, classNam
         {nodes.map((node, index) => {
           const style = STATUS_STYLES[node.status];
           const point = centers[index];
-          const isInteractive = node.status === 'CURRENT';
+          const isInteractive = node.status === 'CURRENT' || node.status === 'COMPLETED';
           const isSelected = node.id === selectedNodeId;
 
           return (

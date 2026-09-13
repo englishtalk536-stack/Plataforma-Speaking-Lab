@@ -13,6 +13,8 @@ export interface UseSpeechSynthesisOptions {
 export interface SpeakOptions {
   /** Called once the utterance finishes — whether it actually played, was skipped (muted), or errored. Always fires exactly once per `speak()` call. */
   onEnd?: () => void;
+  /** Overrides the hook's default rate for just this utterance (e.g. 0.75 for a "slower" replay). */
+  rate?: number;
 }
 
 export interface UseSpeechSynthesisResult {
@@ -74,7 +76,7 @@ export function useSpeechSynthesis(options: UseSpeechSynthesisOptions = {}): Use
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = lang;
-      utterance.rate = rate;
+      utterance.rate = speakOptions.rate ?? rate;
       utterance.pitch = pitch;
       utterance.onstart = () => setIsSpeaking(true);
       utterance.onend = finish;

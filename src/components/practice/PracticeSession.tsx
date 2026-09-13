@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, MicOff, PenLine } from 'lucide-react';
+import { AlertCircle, MicOff } from 'lucide-react';
 import { PracticeHeader } from './PracticeHeader';
 import { VoiceAssistantCard } from './VoiceAssistantCard';
 import { AudioRecorderControls, type RecorderStatus } from './AudioRecorderControls';
@@ -23,12 +23,14 @@ type SessionPhase =
   | 'idle'
   | 'recording'
   | 'processing'
+  | 'retry'
   | 'feedback'
   | 'submitting'
   | 'summary'
   | 'submit-error';
 
 const ASR_FLUSH_DELAY_MS = 900; // time given for the recognizer's final result (and recorded audio) to arrive after stop()
+const MAX_ATTEMPTS_PER_TURN = 3;
 
 function average(values: number[]): number {
   if (values.length === 0) return 0;
@@ -37,12 +39,14 @@ function average(values: number[]): number {
 
 /**
  * Owns the real turn-by-turn flow of a practice session:
- *   ai-speaking (challenge actually spoken aloud via SpeechSynthesis) ->
+ *   ai-speaking (challenge spoken aloud, text hidden — "Listening First") ->
  *   idle (waiting to record) -> recording (real mic + live transcript) ->
- *   processing (ASR settles) -> feedback (real evaluation of what was
- *   actually said) -> next turn, whose question reacts to that transcript.
- * After turn 5, submits the session's average scores to the backend and
- * shows the confirmed XP/coins/level/streak reward.
+ *   processing (ASR settles). From there: a non-empty transcript scores the
+ *   turn for real (feedback); an empty/failed attempt goes to a retry
+ *   prompt instead, up to 3 tries, WITHOUT ever generating fake scores for
+ *   a turn nothing was actually heard on. After turn 5, submits the
+ *   session's average scores to the backend and shows the confirmed
+ *   XP/coins/level/streak reward.
  */
 export function PracticeSession({ context }: PracticeSessionProps) {
   const router = useRouter();
@@ -57,8 +61,13 @@ export function PracticeSession({ context }: PracticeSessionProps) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [lessonResult, setLessonResult] = useState<CompleteLessonResponse | null>(null);
 
-  // Text-input fallback, offered only after a failed/empty mic attempt.
-  const [lastAttemptHadNoSpeech, setLastAttemptHadNoSpeech] = useState(false);
+  // "Listening First": the question text stays hidden until the student
+  // reveals it manually, or exhausts their attempts this turn.
+  const [isTextRevealed, setIsTextRevealed] = useState(false);
+  const [attemptCount, setAttemptCount] = useState(0);
+
+  // Text-input fallback — offered automatically after 3 failed attempts or
+  // a hard mic error (never as a casual first option, by design).
   const [isTextFallbackOpen, setIsTextFallbackOpen] = useState(false);
   const [typedAnswer, setTypedAnswer] = useState('');
 
@@ -70,7 +79,7 @@ export function PracticeSession({ context }: PracticeSessionProps) {
   const confidenceRef = useRef(0);
   const audioUrlRef = useRef<string | null>(null);
   const recordStartRef = useRef(0);
-  const turnMetricsRef = useRef<{ grammar: number; pronunciation: number; fluency: number; vocabulary: number }[]>([]);
+  const turnMetricsRef = useRef<{ pronunciation: number; fluency: number; vocabulary: number }[]>([]);
 
   useEffect(() => {
     transcriptRef.current = speech.transcript;
@@ -90,19 +99,40 @@ export function PracticeSession({ context }: PracticeSessionProps) {
 
   function recordTurnResult(result: MockFeedback, audioUrl: string | null) {
     turnMetricsRef.current.push({
-      grammar: result.grammarScore,
       pronunciation: result.pronunciationScore,
-      fluency: deltaToRadarScale(result.fluencyDelta),
-      vocabulary: deltaToRadarScale(result.vocabularyDelta),
+      fluency: result.fluencyScore ?? deltaToRadarScale(result.fluencyDelta),
+      vocabulary: result.vocabularyScore ?? deltaToRadarScale(result.vocabularyDelta),
     });
     setFeedback(result);
     setTurnAudioUrl(audioUrl);
-    setLastAttemptHadNoSpeech(result.transcript[0]?.text === '(no speech detected)');
     setPhase('feedback');
   }
 
+  /** A turn where nothing usable was heard: NOT scored, NOT shown as feedback — just a retry prompt, up to the attempt cap. */
+  function handleFailedAttempt(isHardError: boolean) {
+    if (isHardError) {
+      // Retrying is unlikely to help a permission/browser error — go
+      // straight to revealing the text and offering the text fallback.
+      setIsTextRevealed(true);
+      setIsTextFallbackOpen(true);
+      setPhase('idle');
+      return;
+    }
+
+    const nextAttempt = attemptCount + 1;
+    setAttemptCount(nextAttempt);
+
+    if (nextAttempt >= MAX_ATTEMPTS_PER_TURN) {
+      setIsTextRevealed(true);
+      setIsTextFallbackOpen(true);
+      setPhase('idle');
+    } else {
+      setPhase('retry');
+    }
+  }
+
   function handleToggleRecord() {
-    if (phase === 'idle') {
+    if (phase === 'idle' || phase === 'retry') {
       setFeedback(null);
       setIsTextFallbackOpen(false);
       speech.reset();
@@ -118,9 +148,18 @@ export function PracticeSession({ context }: PracticeSessionProps) {
       setPhase('processing');
 
       setTimeout(() => {
+        const hadError = !!speech.error;
+        const isEmpty = transcriptRef.current.trim().length === 0;
+
+        if (hadError || isEmpty) {
+          handleFailedAttempt(hadError);
+          return;
+        }
+
         const result = evaluateTranscript({
           transcript: transcriptRef.current,
           cefrLevel: context.cefrLevel,
+          challengeText,
           confidence: confidenceRef.current,
           durationSeconds,
           teacherNote: context.teacherNote,
@@ -134,6 +173,7 @@ export function PracticeSession({ context }: PracticeSessionProps) {
     const result = evaluateTranscript({
       transcript: typedAnswer,
       cefrLevel: context.cefrLevel,
+      challengeText,
       confidence: 1,
       durationSeconds: 0,
       teacherNote: context.teacherNote,
@@ -165,7 +205,9 @@ export function PracticeSession({ context }: PracticeSessionProps) {
     setTurnIndex(nextTurn);
     setFeedback(null);
     setTurnAudioUrl(null);
-    setLastAttemptHadNoSpeech(false);
+    setIsTextRevealed(false);
+    setAttemptCount(0);
+    setIsTextFallbackOpen(false);
     setChallengeText(nextQuestion);
     setPhase('ai-speaking');
     tts.speak(nextQuestion, { onEnd: () => setPhase('idle') });
@@ -177,7 +219,9 @@ export function PracticeSession({ context }: PracticeSessionProps) {
 
     const metrics = turnMetricsRef.current;
     const sessionMetrics = {
-      grammar: average(metrics.map((m) => m.grammar)),
+      // No `grammar` key: this oral-skills module doesn't score grammar, so
+      // it isn't sent at all rather than a made-up number (the backend
+      // leaves the student's grammar radar value untouched when it's absent).
       pronunciation: average(metrics.map((m) => m.pronunciation)),
       fluency: average(metrics.map((m) => m.fluency)),
       vocabulary: average(metrics.map((m) => m.vocabulary)),
@@ -211,9 +255,7 @@ export function PracticeSession({ context }: PracticeSessionProps) {
         ? 'processing'
         : phase === 'ai-speaking'
           ? 'listening'
-          : 'idle';
-
-  const canOfferTextFallback = phase === 'idle' && !isTextFallbackOpen && (!!speech.error || lastAttemptHadNoSpeech);
+          : 'idle'; // 'idle' and 'retry' both render the mic as ready-to-tap
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-4 sm:p-6">
@@ -221,7 +263,11 @@ export function PracticeSession({ context }: PracticeSessionProps) {
         cefrLevel={context.cefrLevel}
         cefrName={context.cefrName}
         exerciseTitle={context.exerciseTitle}
-        currentTurn={Math.min(turnIndex, context.totalTurns)}
+        currentTurn={
+          phase === 'submitting' || phase === 'summary' || phase === 'submit-error'
+            ? context.totalTurns
+            : Math.min(turnIndex, context.totalTurns)
+        }
         totalTurns={context.totalTurns}
         teacherNote={context.teacherNote}
       />
@@ -235,7 +281,10 @@ export function PracticeSession({ context }: PracticeSessionProps) {
           </p>
           <button
             type="button"
-            onClick={() => setIsTextFallbackOpen(true)}
+            onClick={() => {
+              setIsTextRevealed(true);
+              setIsTextFallbackOpen(true);
+            }}
             className="mt-4 rounded-full bg-speaking-king px-5 py-2 font-body text-sm font-semibold text-speaking-white transition-colors hover:bg-speaking-cobalt"
           >
             Write my answer instead
@@ -299,26 +348,31 @@ export function PracticeSession({ context }: PracticeSessionProps) {
         </div>
       ) : (
         <>
-          {speech.error && (
-            <p className="rounded-xl bg-speaking-streak/10 px-4 py-2 font-body text-sm text-speaking-streak">
-              {speech.error}
-            </p>
-          )}
-
           <VoiceAssistantCard
             challengeText={challengeText}
             grammarFocus={context.grammarFocus}
             isSpeaking={tts.isSpeaking}
             isMuted={tts.isMuted}
             onToggleMute={tts.toggleMute}
+            isTextRevealed={isTextRevealed}
+            onRevealText={() => setIsTextRevealed(true)}
             onReplay={() => {
               setPhase('ai-speaking');
               tts.speak(challengeText, { onEnd: () => setPhase('idle') });
+            }}
+            onReplaySlower={() => {
+              setPhase('ai-speaking');
+              tts.speak(challengeText, { onEnd: () => setPhase('idle'), rate: 0.75 });
             }}
           />
 
           {isTextFallbackOpen ? (
             <div className="rounded-2xl border border-speaking-cobalt/10 bg-speaking-white p-5 shadow-sm">
+              {speech.error && (
+                <p className="mb-3 rounded-xl bg-speaking-streak/10 px-3 py-2 font-body text-xs text-speaking-streak">
+                  {speech.error}
+                </p>
+              )}
               <label htmlFor="typed-answer" className="font-body text-sm font-semibold text-speaking-cobalt">
                 Write your answer
               </label>
@@ -342,7 +396,10 @@ export function PracticeSession({ context }: PracticeSessionProps) {
                 {speech.isSupported && (
                   <button
                     type="button"
-                    onClick={() => setIsTextFallbackOpen(false)}
+                    onClick={() => {
+                      setAttemptCount(0); // a fresh set of tries if they'd rather try the mic again
+                      setIsTextFallbackOpen(false);
+                    }}
                     className="rounded-full px-5 py-2 font-body text-sm font-semibold text-speaking-cobalt/60 hover:text-speaking-cobalt"
                   >
                     Use the mic instead
@@ -352,6 +409,18 @@ export function PracticeSession({ context }: PracticeSessionProps) {
             </div>
           ) : (
             <>
+              {phase === 'retry' && (
+                <p className="rounded-xl bg-speaking-streak/10 px-4 py-2 text-center font-body text-sm text-speaking-cobalt/80">
+                  We didn&apos;t quite catch that. Attempt {attemptCount} of {MAX_ATTEMPTS_PER_TURN} — tap the mic to try
+                  again.
+                </p>
+              )}
+              {speech.error && phase !== 'retry' && (
+                <p className="rounded-xl bg-speaking-streak/10 px-4 py-2 text-center font-body text-sm text-speaking-streak">
+                  {speech.error}
+                </p>
+              )}
+
               <AudioRecorderControls
                 status={recorderStatus}
                 volumeLevel={speech.volumeLevel}
@@ -361,19 +430,6 @@ export function PracticeSession({ context }: PracticeSessionProps) {
 
               {phase === 'recording' && speech.transcript && (
                 <p className="text-center font-body text-sm italic text-speaking-cobalt/60">&quot;{speech.transcript}&quot;</p>
-              )}
-
-              {canOfferTextFallback && (
-                <div className="text-center">
-                  <button
-                    type="button"
-                    onClick={() => setIsTextFallbackOpen(true)}
-                    className="inline-flex items-center gap-1.5 font-body text-xs font-semibold text-speaking-cobalt/50 hover:text-speaking-king"
-                  >
-                    <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span>Having trouble? Write your answer instead</span>
-                  </button>
-                </div>
               )}
             </>
           )}
