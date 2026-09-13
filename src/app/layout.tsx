@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { anton } from '../lib/fonts';
+import { AuthSessionProvider } from '../components/SessionProvider';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={anton.variable}>
-      <body>{children}</body>
+      <body><AuthSessionProvider>{children}</AuthSessionProvider></body>
     </html>
   );
 }

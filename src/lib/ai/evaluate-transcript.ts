@@ -154,6 +154,7 @@ export interface EvaluateTranscriptInput {
   transcript: string;
   cefrLevel: CEFRLevel;
   challengeText?: string;
+  isTyped?: boolean;
   /** ASR confidence (0-1) averaged across finalized speech results this turn. */
   confidence: number;
   /** Wall-clock recording duration for this turn, in seconds. */

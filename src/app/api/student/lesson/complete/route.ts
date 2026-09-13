@@ -89,6 +89,15 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      const scoredMetrics = [sessionMetrics.pronunciation, sessionMetrics.fluency, sessionMetrics.vocabulary];
+      if (sessionMetrics.grammar !== undefined) scoredMetrics.push(sessionMetrics.grammar);
+      const lessonScore = scoredMetrics.reduce((sum, value) => sum + value, 0) / scoredMetrics.length;
+      await tx.userLessonProgress.upsert({
+        where: { userId_nodeId: { userId, nodeId } },
+        update: { attempts: { increment: 1 }, score: lessonScore, completedAt: new Date() },
+        create: { userId, nodeId, attempts: 1, score: lessonScore, completedAt: new Date() },
+      });
+
       // Unlock any direct child nodes the student now qualifies for (by
       // level), so the Skill Path reflects progress immediately instead of
       // requiring a separate "unlock" step or page reload logic. Harmless

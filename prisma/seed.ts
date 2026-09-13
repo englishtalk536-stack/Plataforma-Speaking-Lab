@@ -135,6 +135,28 @@ async function main() {
 
   console.log(`✅ Extended skill path: ${travelStories.title}, ${businessNegotiation.title}, ${abstractDebate.title}`);
 
+  const curriculum = [
+    { id: basicGreetings.id, cefrLevel: 'A1', challengeText: 'Introduce yourself and say where you are from.', targetVocabulary: 'name, country, city, live', grammarHints: 'be, subject pronouns' },
+    { id: orderingFood.id, cefrLevel: 'A2', challengeText: 'Order a meal and describe what you had yesterday.', targetVocabulary: 'menu, order, meal, yesterday', grammarHints: 'polite requests, past simple' },
+    { id: jobInterviewPrep.id, cefrLevel: 'B1', challengeText: 'Describe a challenging experience working in a team.', targetVocabulary: 'experience, teamwork, challenge, solution', grammarHints: 'past simple, present perfect' },
+    { id: travelStories.id, cefrLevel: 'B2', challengeText: 'Tell a detailed story about a memorable trip.', targetVocabulary: 'journey, destination, memorable, unexpected', grammarHints: 'narrative tenses, conditionals' },
+    { id: businessNegotiation.id, cefrLevel: 'C1', challengeText: 'Negotiate a better contract while defending your priorities.', targetVocabulary: 'terms, concession, proposal, contingency', grammarHints: 'hedging, formal connectors' },
+    { id: abstractDebate.id, cefrLevel: 'C2', challengeText: 'Defend a nuanced position on technology and human connection.', targetVocabulary: 'nuance, evidence, reconcile, implication', grammarHints: 'inversion, discourse markers' },
+  ];
+  for (const node of curriculum) {
+    await prisma.skillNode.update({ where: { id: node.id }, data: node });
+  }
+
+  const extraNodes = [
+    { id: '00000000-0000-0000-0000-000000000007', title: 'Daily Routines', description: 'Talk about habits, schedules, and everyday responsibilities.', levelRequired: 2, parentNodeId: basicGreetings.id, xpReward: 80, coinReward: 16, positionX: 0.5, positionY: 1, cefrLevel: 'A2', challengeText: 'Describe your weekday routine from morning to evening.', targetVocabulary: 'routine, schedule, usually, commute', grammarHints: 'present simple, frequency adverbs' },
+    { id: '00000000-0000-0000-0000-000000000008', title: 'Expressing Opinions', description: 'Share opinions and support them with clear reasons.', levelRequired: 6, parentNodeId: jobInterviewPrep.id, xpReward: 175, coinReward: 28, positionX: 2.5, positionY: 1, cefrLevel: 'B1', challengeText: 'Give your opinion on remote work and explain your reasons.', targetVocabulary: 'opinion, advantage, drawback, evidence', grammarHints: 'linkers, modals of certainty' },
+    { id: '00000000-0000-0000-0000-000000000009', title: 'Commercial Presentation', description: 'Present a product persuasively to a professional audience.', levelRequired: 10, parentNodeId: travelStories.id, xpReward: 230, coinReward: 35, positionX: 3.5, positionY: 1, cefrLevel: 'B2', challengeText: 'Present a product and persuade a client to try it.', targetVocabulary: 'market, value, feature, outcome', grammarHints: 'signposting, persuasive language' },
+    { id: '00000000-0000-0000-0000-000000000010', title: 'Academic Discussion', description: 'Synthesize opposing views and reach a carefully qualified conclusion.', levelRequired: 14, parentNodeId: businessNegotiation.id, xpReward: 320, coinReward: 45, positionX: 4.5, positionY: 1, cefrLevel: 'C1', challengeText: 'Compare two solutions to a complex social problem.', targetVocabulary: 'framework, trade-off, sustainable, perspective', grammarHints: 'subordination, concession clauses' },
+  ];
+  for (const node of extraNodes) {
+    await prisma.skillNode.upsert({ where: { id: node.id }, update: node, create: node });
+  }
+
   await prisma.userSkillProgress.upsert({
     where: { userId_nodeId: { userId: localUser.id, nodeId: basicGreetings.id } },
     update: { status: NodeStatus.COMPLETED },

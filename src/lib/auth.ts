@@ -1,4 +1,6 @@
 import type { NextRequest } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from './auth-options';
 
 export const LOCAL_DEV_USER_ID = '00000000-0000-0000-0000-000000000010';
 
@@ -14,7 +16,7 @@ export const LOCAL_DEV_USER_ID = '00000000-0000-0000-0000-000000000010';
  */
 export async function getCurrentUserId(request: Request | NextRequest): Promise<string | null> {
   const headerUserId = request.headers.get('x-user-id');
-  if (headerUserId && headerUserId.trim().length > 0) {
+  if (process.env.NODE_ENV !== 'production' && headerUserId && headerUserId.trim().length > 0) {
     return headerUserId.trim();
   }
 
@@ -22,5 +24,14 @@ export async function getCurrentUserId(request: Request | NextRequest): Promise<
     return process.env.LOCAL_USER_ID?.trim() || LOCAL_DEV_USER_ID;
   }
 
-  return null;
+  const session = await getServerSession(authOptions);
+  return session?.user?.id ?? null;
 }
+
+export type AppRole = 'STUDENT' | 'TEACHER' | 'ADMIN';
+
+export const roleLabels: Record<AppRole, string> = {
+  STUDENT: 'Student',
+  TEACHER: 'Teacher',
+  ADMIN: 'Admin',
+};

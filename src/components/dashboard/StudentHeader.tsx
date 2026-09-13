@@ -1,7 +1,9 @@
 import Image from 'next/image';
+import { useSession } from 'next-auth/react';
 import { XpProgressBar } from './XpProgressBar';
 import { StreakFlame } from './StreakFlame';
 import { CoinsBalance } from './CoinsBalance';
+import { roleLabels, type AppRole } from '../../lib/auth';
 
 export interface StudentHeaderProps {
   fullName: string;
@@ -33,6 +35,10 @@ export function StudentHeader({
   coins,
   rewardTrigger = 0,
 }: StudentHeaderProps) {
+  const { data: session } = useSession();
+  const displayName = session?.user?.name ?? fullName;
+  const displayRole = roleLabels[(session?.user?.role ?? 'STUDENT') as AppRole];
+
   return (
     <header className="flex flex-col gap-4 rounded-2xl bg-speaking-cobalt px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-4">
@@ -40,14 +46,14 @@ export function StudentHeader({
           {avatarUrl ? (
             <Image
               src={avatarUrl}
-              alt={fullName}
+              alt={displayName}
               fill
               sizes="56px"
               className="rounded-full border-2 border-speaking-mustard object-cover"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center rounded-full border-2 border-speaking-mustard bg-speaking-king font-title text-lg text-speaking-white">
-              {fullName.charAt(0).toUpperCase()}
+              {displayName.charAt(0).toUpperCase()}
             </div>
           )}
           <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-speaking-cobalt bg-speaking-mustard font-title text-[11px] text-speaking-cobalt">
@@ -56,7 +62,8 @@ export function StudentHeader({
         </div>
 
         <div className="min-w-[180px]">
-          <p className="font-title text-lg leading-tight text-speaking-white">{fullName}</p>
+          <p className="font-title text-lg leading-tight text-speaking-white">{displayName}</p>
+          <p className="font-body text-xs uppercase tracking-wide text-speaking-white/60">{displayRole}</p>
           <XpProgressBar
             className="mt-1.5 w-48"
             currentXp={currentXp}

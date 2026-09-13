@@ -116,6 +116,7 @@ model User {
   bookingsAsStudent   ClassBooking[]       @relation("StudentBookings")
   bookingsAsTeacher   ClassBooking[]       @relation("TeacherBookings")
   dailyQuests         UserDailyQuest[]
+  lessonProgress      UserLessonProgress[]
 
   @@index([role])
   @@map("users")
@@ -201,6 +202,10 @@ model SkillNode {
   xpReward      Int     @map("xp_reward")
   /** Speaking Coins awarded for completing this node's lesson. Added to support end-of-lesson rewards in the Speaking Playground. */
   coinReward    Int     @default(0) @map("coin_reward")
+  cefrLevel     String? @map("cefr_level")
+  challengeText String? @map("challenge_text")
+  targetVocabulary String? @map("target_vocabulary")
+  grammarHints  String? @map("grammar_hints")
   positionX     Float   @map("position_x")
   positionY     Float   @map("position_y")
 
@@ -211,6 +216,7 @@ model SkillNode {
   children   SkillNode[] @relation("SkillNodeHierarchy")
 
   userProgress UserSkillProgress[]
+  lessonProgress UserLessonProgress[]
 
   @@index([parentNodeId])
   @@map("skill_nodes")
@@ -233,6 +239,23 @@ model UserSkillProgress {
   @@index([userId])
   @@index([nodeId])
   @@map("user_skill_progress")
+}
+
+model UserLessonProgress {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  nodeId      String    @map("node_id")
+  completedAt DateTime? @map("completed_at")
+  attempts    Int       @default(0)
+  score       Float?
+
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node SkillNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, nodeId])
+  @@index([userId])
+  @@index([nodeId])
+  @@map("user_lesson_progress")
 }
 
 // ============================================================================

@@ -371,7 +371,8 @@ export class AnthropicAiProvider implements AiProviderPort {
 
   private extractAndValidate(response: Anthropic.Message): { aiResponseText: string; feedback: AiPracticeFeedback } {
     const toolUseBlock = response.content.find(
-      (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use' && block.name === AI_REPLY_TOOL_NAME,
+      (block): block is Anthropic.ToolUseBlock =>
+        block.type === 'tool_use' && 'input' in block && block.name === AI_REPLY_TOOL_NAME,
     );
 
     if (!toolUseBlock) {
@@ -389,7 +390,8 @@ export class AnthropicAiProvider implements AiProviderPort {
 
   private isRetryable(err: unknown): boolean {
     if (err instanceof Anthropic.APIError) {
-      return err.status === 429 || (typeof err.status === 'number' && err.status >= 500);
+      const status = err.status;
+      return status === 429 || (typeof status === 'number' && status >= 500);
     }
     return false;
   }

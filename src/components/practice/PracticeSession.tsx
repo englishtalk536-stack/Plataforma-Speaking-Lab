@@ -77,7 +77,6 @@ export function PracticeSession({ context }: PracticeSessionProps) {
   // were at the instant the button was tapped (a real, not stale, closure).
   const transcriptRef = useRef('');
   const confidenceRef = useRef(0);
-  const audioUrlRef = useRef<string | null>(null);
   const recordStartRef = useRef(0);
   const turnMetricsRef = useRef<{ pronunciation: number; fluency: number; vocabulary: number }[]>([]);
 
@@ -87,10 +86,6 @@ export function PracticeSession({ context }: PracticeSessionProps) {
   useEffect(() => {
     confidenceRef.current = speech.confidence;
   }, [speech.confidence]);
-  useEffect(() => {
-    audioUrlRef.current = speech.audioUrl;
-  }, [speech.audioUrl]);
-
   // Speak the initial challenge aloud once, on mount, then settle to idle.
   useEffect(() => {
     tts.speak(context.initialChallenge, { onEnd: () => setPhase('idle') });
@@ -164,7 +159,7 @@ export function PracticeSession({ context }: PracticeSessionProps) {
           durationSeconds,
           teacherNote: context.teacherNote,
         });
-        recordTurnResult(result, audioUrlRef.current);
+        recordTurnResult(result, null);
       }, ASR_FLUSH_DELAY_MS);
     }
   }
