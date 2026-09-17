@@ -4,6 +4,7 @@ import { getCurrentUserId } from '../../../../lib/auth';
 import { getXpRequiredForLevel } from '../../../../lib/gamification/xp-formula';
 import { DashboardApiError, StudentNotFoundError, UnauthenticatedError, todayUtcMidnight } from '../../../../server/errors';
 import type {
+  ClassroomSummaryDto,
   DailyQuestDto,
   FeedbackRadarDto,
   SkillPathNodeDto,
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
       throw new UnauthenticatedError();
     }
 
-    const [user, streak, skillProgress, dailyQuests] = await Promise.all([
+    const [user, streak, skillProgress, dailyQuests, classroomMemberships] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId } }),
       prisma.streak.findUnique({ where: { userId } }),
       prisma.userSkillProgress.findMany({
@@ -37,6 +38,23 @@ export async function GET(request: NextRequest) {
         where: { userId, assignedDate: todayUtcMidnight() },
         include: { quest: true },
         orderBy: { createdAt: 'asc' },
+      }),
+      prisma.classroomMembership.findMany({
+        where: {
+          userId,
+          status: 'ACTIVE',
+          classroom: { status: 'ACTIVE' },
+        },
+        include: {
+          classroom: {
+            include: {
+              teacher: {
+                select: { id: true, fullName: true },
+              },
+            },
+          },
+        },
+        orderBy: { joinedAt: 'desc' },
       }),
     ]);
 
@@ -68,6 +86,20 @@ export async function GET(request: NextRequest) {
       status: assignment.status,
     }));
 
+    const classrooms: ClassroomSummaryDto[] = classroomMemberships.map((membership) => ({
+      id: membership.classroom.id,
+      name: membership.classroom.name,
+      description: membership.classroom.description,
+      level: membership.classroom.level,
+      status: membership.classroom.status,
+      teacher: {
+        id: membership.classroom.teacher.id,
+        name: membership.classroom.teacher.fullName,
+      },
+      membershipStatus: membership.status,
+      joinedAt: membership.joinedAt.toISOString(),
+    }));
+
     const response: StudentDashboardResponse = {
       profile: {
         name: user.fullName,
@@ -81,6 +113,7 @@ export async function GET(request: NextRequest) {
       skillPath,
       feedbackRadar,
       dailyQuests: quests,
+      classrooms,
     };
 
     return NextResponse.json(response);

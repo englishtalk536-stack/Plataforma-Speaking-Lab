@@ -17,6 +17,24 @@ export interface FeedbackRadarDto {
 
 export type DailyQuestStatusDto = 'PENDING' | 'COMPLETED' | 'EXPIRED';
 
+export type ClassroomStatusDto = 'ACTIVE' | 'ARCHIVED';
+
+export type ClassroomMembershipStatusDto = 'ACTIVE' | 'INACTIVE';
+
+export interface ClassroomSummaryDto {
+  id: string;
+  name: string;
+  description: string | null;
+  level: string | null;
+  status: ClassroomStatusDto;
+  teacher: {
+    id: string;
+    name: string;
+  };
+  membershipStatus: ClassroomMembershipStatusDto;
+  joinedAt: string;
+}
+
 export interface DailyQuestDto {
   /** UserDailyQuest.id — pass this back as `questId` to POST /api/student/quest/complete. */
   id: string;
@@ -42,6 +60,7 @@ export interface StudentDashboardResponse {
   skillPath: SkillPathNodeDto[];
   feedbackRadar: FeedbackRadarDto;
   dailyQuests: DailyQuestDto[];
+  classrooms: ClassroomSummaryDto[];
 }
 
 export interface CompleteQuestRequest {
