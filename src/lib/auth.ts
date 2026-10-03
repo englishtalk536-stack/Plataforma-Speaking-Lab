@@ -15,17 +15,20 @@ export const LOCAL_DEV_USER_ID = '00000000-0000-0000-0000-000000000010';
  * make sure the resolved id can't be spoofed by the client.
  */
 export async function getCurrentUserId(request: Request | NextRequest): Promise<string | null> {
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) return session.user.id;
+
   const headerUserId = request.headers.get('x-user-id');
-  if (process.env.NODE_ENV !== 'production' && headerUserId && headerUserId.trim().length > 0) {
+  if (process.env.NODE_ENV === 'development' && headerUserId && headerUserId.trim().length > 0) {
     return headerUserId.trim();
   }
 
-  if (process.env.NODE_ENV !== 'production') {
+  // Explicit opt-in for local scripts that cannot establish a NextAuth session.
+  if (process.env.NODE_ENV === 'development' && process.env.LOCAL_DEV_AUTH_BYPASS === 'true') {
     return process.env.LOCAL_USER_ID?.trim() || LOCAL_DEV_USER_ID;
   }
 
-  const session = await getServerSession(authOptions);
-  return session?.user?.id ?? null;
+  return null;
 }
 
 export type AppRole = 'STUDENT' | 'TEACHER' | 'ADMIN';

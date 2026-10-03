@@ -12,10 +12,7 @@ export async function middleware(request: NextRequest) {
   if (!protectedArea) return NextResponse.next();
 
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
-  if (!token) {
-    if (process.env.NODE_ENV !== 'production') return NextResponse.next();
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
+  if (!token) return NextResponse.redirect(new URL('/login', request.url));
 
   const role = token.role as string | undefined;
   if (url.pathname.startsWith('/admin') && role !== 'ADMIN') return NextResponse.redirect(new URL('/dashboard', request.url));
@@ -25,5 +22,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/practice/:path*', '/dashboard/:path*', '/teacher/:path*', '/admin/:path*'],
+  matcher: ['/:path*'],
 };
