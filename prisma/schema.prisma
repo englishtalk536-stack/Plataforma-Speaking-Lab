@@ -81,6 +81,16 @@ enum DailyQuestStatus {
   EXPIRED
 }
 
+enum ClassroomStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ClassroomMembershipStatus {
+  ACTIVE
+  INACTIVE
+}
+
 // ============================================================================
 // USERS & GAMIFICATION CORE
 // ============================================================================
@@ -98,37 +108,39 @@ model User {
   coins     Int @default(0)
 
   // Feedback Radar (escala 0-100)
-  radarFluency      Float @default(0) @map("radar_fluency")
-  radarGrammar      Float @default(0) @map("radar_grammar")
+  radarFluency       Float @default(0) @map("radar_fluency")
+  radarGrammar       Float @default(0) @map("radar_grammar")
   radarPronunciation Float @default(0) @map("radar_pronunciation")
-  radarVocabulary   Float @default(0) @map("radar_vocabulary")
+  radarVocabulary    Float @default(0) @map("radar_vocabulary")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  streak              Streak?
-  xpLogs              XpLog[]
-  userBadges          UserBadge[]
-  skillProgress       UserSkillProgress[]
-  inventory           UserInventory[]
-  aiConversations     AiConversation[]
-  bookingsAsStudent   ClassBooking[]       @relation("StudentBookings")
-  bookingsAsTeacher   ClassBooking[]       @relation("TeacherBookings")
-  dailyQuests         UserDailyQuest[]
-  lessonProgress      UserLessonProgress[]
+  streak               Streak?
+  xpLogs               XpLog[]
+  userBadges           UserBadge[]
+  skillProgress        UserSkillProgress[]
+  inventory            UserInventory[]
+  aiConversations      AiConversation[]
+  bookingsAsStudent    ClassBooking[]        @relation("StudentBookings")
+  bookingsAsTeacher    ClassBooking[]        @relation("TeacherBookings")
+  dailyQuests          UserDailyQuest[]
+  lessonProgress       UserLessonProgress[]
+  classroomsAsTeacher  Classroom[]           @relation("ClassroomTeacher")
+  classroomMemberships ClassroomMembership[] @relation("ClassroomMembershipUser")
 
   @@index([role])
   @@map("users")
 }
 
 model Streak {
-  id                String   @id @default(uuid())
-  userId            String   @unique @map("user_id")
-  currentStreak     Int      @default(0) @map("current_streak")
-  maxStreak         Int      @default(0) @map("max_streak")
-  lastActivityDate  DateTime @map("last_activity_date")
-  freezeCredits     Int      @default(0) @map("freeze_credits")
+  id               String   @id @default(uuid())
+  userId           String   @unique @map("user_id")
+  currentStreak    Int      @default(0) @map("current_streak")
+  maxStreak        Int      @default(0) @map("max_streak")
+  lastActivityDate DateTime @map("last_activity_date")
+  freezeCredits    Int      @default(0) @map("freeze_credits")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -159,12 +171,12 @@ model XpLog {
 // ============================================================================
 
 model Badge {
-  id            String @id @default(uuid())
-  title         String
-  description   String
-  iconUrl       String @map("icon_url")
-  conditionType String @map("condition_type")
-  conditionValue Int   @map("condition_value")
+  id             String @id @default(uuid())
+  title          String
+  description    String
+  iconUrl        String @map("icon_url")
+  conditionType  String @map("condition_type")
+  conditionValue Int    @map("condition_value")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -194,20 +206,22 @@ model UserBadge {
 // ============================================================================
 
 model SkillNode {
-  id            String  @id @default(uuid())
-  title         String
-  description   String
-  levelRequired Int     @map("level_required")
-  parentNodeId  String? @map("parent_node_id")
-  xpReward      Int     @map("xp_reward")
-  /** Speaking Coins awarded for completing this node's lesson. Added to support end-of-lesson rewards in the Speaking Playground. */
-  coinReward    Int     @default(0) @map("coin_reward")
-  cefrLevel     String? @map("cefr_level")
-  challengeText String? @map("challenge_text")
+  id               String  @id @default(uuid())
+  title            String
+  description      String
+  levelRequired    Int     @map("level_required")
+  parentNodeId     String? @map("parent_node_id")
+  xpReward         Int     @map("xp_reward")
+  /**
+   * Speaking Coins awarded for completing this node's lesson. Added to support end-of-lesson rewards in the Speaking Playground.
+   */
+  coinReward       Int     @default(0) @map("coin_reward")
+  cefrLevel        String? @map("cefr_level")
+  challengeText    String? @map("challenge_text")
   targetVocabulary String? @map("target_vocabulary")
-  grammarHints  String? @map("grammar_hints")
-  positionX     Float   @map("position_x")
-  positionY     Float   @map("position_y")
+  grammarHints     String? @map("grammar_hints")
+  positionX        Float   @map("position_x")
+  positionY        Float   @map("position_y")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -215,7 +229,7 @@ model SkillNode {
   parentNode SkillNode?  @relation("SkillNodeHierarchy", fields: [parentNodeId], references: [id], onDelete: SetNull)
   children   SkillNode[] @relation("SkillNodeHierarchy")
 
-  userProgress UserSkillProgress[]
+  userProgress   UserSkillProgress[]
   lessonProgress UserLessonProgress[]
 
   @@index([parentNodeId])
@@ -258,6 +272,48 @@ model UserLessonProgress {
   @@map("user_lesson_progress")
 }
 
+model Classroom {
+  id          String          @id @default(uuid())
+  name        String
+  description String?
+  level       String?
+  teacherId   String          @map("teacher_id")
+  status      ClassroomStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  teacher     User                  @relation("ClassroomTeacher", fields: [teacherId], references: [id])
+  memberships ClassroomMembership[] @relation("ClassroomMembershipClassroom")
+
+  @@index([teacherId])
+  @@index([status])
+  @@index([level])
+  @@map("classrooms")
+}
+
+model ClassroomMembership {
+  id          String                    @id @default(uuid())
+  classroomId String                    @map("classroom_id")
+  userId      String                    @map("user_id")
+  status      ClassroomMembershipStatus @default(ACTIVE)
+  joinedAt    DateTime                  @default(now()) @map("joined_at")
+  leftAt      DateTime?                 @map("left_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  classroom Classroom @relation("ClassroomMembershipClassroom", fields: [classroomId], references: [id], onDelete: Cascade)
+  user      User      @relation("ClassroomMembershipUser", fields: [userId], references: [id])
+
+  @@unique([classroomId, userId])
+  @@index([classroomId])
+  @@index([userId])
+  @@index([classroomId, status])
+  @@index([userId, status])
+  @@map("classroom_memberships")
+}
+
 // ============================================================================
 // STORE / COIN REDEMPTION
 // ============================================================================
@@ -281,12 +337,12 @@ model StoreItem {
 }
 
 model UserInventory {
-  id           String          @id @default(uuid())
-  userId       String          @map("user_id")
-  itemId       String          @map("item_id")
-  status       InventoryStatus @default(AVAILABLE)
-  purchasedAt  DateTime        @default(now()) @map("purchased_at")
-  redeemedAt   DateTime?       @map("redeemed_at")
+  id          String          @id @default(uuid())
+  userId      String          @map("user_id")
+  itemId      String          @map("item_id")
+  status      InventoryStatus @default(AVAILABLE)
+  purchasedAt DateTime        @default(now()) @map("purchased_at")
+  redeemedAt  DateTime?       @map("redeemed_at")
 
   user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   item StoreItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
@@ -302,10 +358,10 @@ model UserInventory {
 // ============================================================================
 
 model AiConversation {
-  id           String              @id @default(uuid())
-  userId       String              @map("user_id")
-  scenarioType ScenarioType        @map("scenario_type")
-  status       ConversationStatus  @default(ACTIVE)
+  id           String             @id @default(uuid())
+  userId       String             @map("user_id")
+  scenarioType ScenarioType       @map("scenario_type")
+  status       ConversationStatus @default(ACTIVE)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -339,11 +395,11 @@ model AiMessage {
 // ============================================================================
 
 model ClassBooking {
-  id           String        @id @default(uuid())
-  studentId    String        @map("student_id")
-  teacherId    String        @map("teacher_id")
-  scheduledAt  DateTime      @map("scheduled_at")
-  status       BookingStatus @default(SCHEDULED)
+  id          String        @id @default(uuid())
+  studentId   String        @map("student_id")
+  teacherId   String        @map("teacher_id")
+  scheduledAt DateTime      @map("scheduled_at")
+  status      BookingStatus @default(SCHEDULED)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -406,7 +462,9 @@ model UserDailyQuest {
   id           String           @id @default(uuid())
   userId       String           @map("user_id")
   questId      String           @map("quest_id")
-  /** Normalized to UTC midnight of the day this quest was assigned — one row per user/quest/day. */
+  /**
+   * Normalized to UTC midnight of the day this quest was assigned — one row per user/quest/day.
+   */
   assignedDate DateTime         @map("assigned_date")
   status       DailyQuestStatus @default(PENDING)
   completedAt  DateTime?        @map("completed_at")

@@ -1,4 +1,4 @@
-import { PrismaClient, ItemType, NodeStatus } from '@prisma/client';
+import { PrismaClient, ItemType, NodeStatus, Role } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -31,6 +31,55 @@ async function main() {
       maxStreak: 7,
       lastActivityDate: new Date(),
       freezeCredits: 1,
+    },
+  });
+
+  const localTeacher = await prisma.user.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000011' },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000011',
+      email: 'teacher@localhost.test',
+      fullName: 'Local SpeakingLab Teacher',
+      role: Role.TEACHER,
+    },
+  });
+
+  const localClassroom = await prisma.classroom.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000401' },
+    update: {
+      name: 'SpeakingLab Foundations',
+      description: 'Local test classroom for the SpeakingLab English curriculum.',
+      level: 'A2',
+      teacherId: localTeacher.id,
+      status: 'ACTIVE',
+    },
+    create: {
+      id: '00000000-0000-0000-0000-000000000401',
+      name: 'SpeakingLab Foundations',
+      description: 'Local test classroom for the SpeakingLab English curriculum.',
+      level: 'A2',
+      teacherId: localTeacher.id,
+      status: 'ACTIVE',
+    },
+  });
+
+  await prisma.classroomMembership.upsert({
+    where: {
+      classroomId_userId: {
+        classroomId: localClassroom.id,
+        userId: localUser.id,
+      },
+    },
+    update: {
+      status: 'ACTIVE',
+      leftAt: null,
+    },
+    create: {
+      id: '00000000-0000-0000-0000-000000000501',
+      classroomId: localClassroom.id,
+      userId: localUser.id,
+      status: 'ACTIVE',
     },
   });
 
@@ -159,32 +208,32 @@ async function main() {
 
   await prisma.userSkillProgress.upsert({
     where: { userId_nodeId: { userId: localUser.id, nodeId: basicGreetings.id } },
-    update: { status: NodeStatus.COMPLETED },
+    update: {},
     create: { userId: localUser.id, nodeId: basicGreetings.id, status: NodeStatus.COMPLETED },
   });
   await prisma.userSkillProgress.upsert({
     where: { userId_nodeId: { userId: localUser.id, nodeId: travelStories.id } },
-    update: { status: NodeStatus.LOCKED },
+    update: {},
     create: { userId: localUser.id, nodeId: travelStories.id, status: NodeStatus.LOCKED },
   });
   await prisma.userSkillProgress.upsert({
     where: { userId_nodeId: { userId: localUser.id, nodeId: businessNegotiation.id } },
-    update: { status: NodeStatus.LOCKED },
+    update: {},
     create: { userId: localUser.id, nodeId: businessNegotiation.id, status: NodeStatus.LOCKED },
   });
   await prisma.userSkillProgress.upsert({
     where: { userId_nodeId: { userId: localUser.id, nodeId: abstractDebate.id } },
-    update: { status: NodeStatus.LOCKED },
+    update: {},
     create: { userId: localUser.id, nodeId: abstractDebate.id, status: NodeStatus.LOCKED },
   });
   await prisma.userSkillProgress.upsert({
     where: { userId_nodeId: { userId: localUser.id, nodeId: orderingFood.id } },
-    update: { status: NodeStatus.UNLOCKED },
+    update: {},
     create: { userId: localUser.id, nodeId: orderingFood.id, status: NodeStatus.UNLOCKED },
   });
   await prisma.userSkillProgress.upsert({
     where: { userId_nodeId: { userId: localUser.id, nodeId: jobInterviewPrep.id } },
-    update: { status: NodeStatus.LOCKED },
+    update: {},
     create: { userId: localUser.id, nodeId: jobInterviewPrep.id, status: NodeStatus.LOCKED },
   });
 
