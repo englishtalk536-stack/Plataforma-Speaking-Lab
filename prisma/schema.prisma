@@ -355,6 +355,7 @@ model SubmissionFeedback {
   id           String   @id @default(uuid())
   submissionId String   @unique @map("submission_id")
   teacherId    String   @map("teacher_id")
+  score        Int?
   comment      String
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
