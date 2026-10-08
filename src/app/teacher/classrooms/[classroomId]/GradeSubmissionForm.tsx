@@ -24,34 +24,55 @@ export function GradeSubmissionForm({
   classroomId,
   submissionId,
   initialScore,
+  initialComment,
 }: {
   classroomId: string;
   submissionId: string;
   initialScore: number | null;
+  initialComment: string | null;
 }) {
   const action = gradeActivitySubmission.bind(null, classroomId, submissionId);
   const [state, formAction] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3">
-      <div>
-        <label htmlFor={`grade-${submissionId}`} className="block font-body text-sm font-semibold text-speaking-cobalt">
+    <form action={formAction} className="space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label htmlFor={`grade-${submissionId}`} className="block font-body text-sm font-semibold text-speaking-cobalt">
           Nota (1–20 puntos)
+          </label>
+          <input
+            id={`grade-${submissionId}`}
+            name="score"
+            type="number"
+            min={1}
+            max={20}
+            step={1}
+            required
+            defaultValue={initialScore ?? ''}
+            aria-invalid={state.status === 'error'}
+            className="mt-1 h-10 w-28 border border-speaking-cobalt/20 bg-white px-3 font-body text-sm text-speaking-cobalt focus:border-speaking-cobalt focus:outline-none focus:ring-2 focus:ring-speaking-cobalt/15"
+          />
+        </div>
+        <SaveGradeButton />
+      </div>
+
+      <div>
+        <label htmlFor={`comment-${submissionId}`} className="block font-body text-sm font-semibold text-speaking-cobalt">
+          Feedback para el estudiante
         </label>
-        <input
-          id={`grade-${submissionId}`}
-          name="score"
-          type="number"
-          min={1}
-          max={20}
-          step={1}
+        <textarea
+          id={`comment-${submissionId}`}
+          name="comment"
           required
-          defaultValue={initialScore ?? ''}
+          maxLength={2000}
+          rows={4}
+          defaultValue={initialComment ?? ''}
           aria-invalid={state.status === 'error'}
-          className="mt-1 h-10 w-28 border border-speaking-cobalt/20 bg-white px-3 font-body text-sm text-speaking-cobalt focus:border-speaking-cobalt focus:outline-none focus:ring-2 focus:ring-speaking-cobalt/15"
+          className="mt-1 w-full resize-y border border-speaking-cobalt/20 bg-white px-3 py-2 font-body text-sm leading-6 text-speaking-cobalt focus:border-speaking-cobalt focus:outline-none focus:ring-2 focus:ring-speaking-cobalt/15"
         />
       </div>
-      <SaveGradeButton />
+
       {state.status !== 'idle' && (
         <p role={state.status === 'error' ? 'alert' : 'status'} className="basis-full font-body text-sm text-speaking-cobalt">
           {state.message}

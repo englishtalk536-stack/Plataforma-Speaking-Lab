@@ -34,7 +34,7 @@ export default async function StudentClassroomPage({
                 where: { studentId },
                 select: {
                   responseText: true,
-                  submissionFeedback: { select: { score: true } },
+                  submissionFeedback: { select: { score: true, comment: true } },
                 },
                 take: 1,
               },
@@ -96,10 +96,21 @@ export default async function StudentClassroomPage({
                   activityId={activity.id}
                   initialResponse={activity.submissions[0]?.responseText ?? ''}
                 />
-                {activity.submissions[0]?.submissionFeedback?.score != null && (
-                  <p className="mt-4 border-t border-speaking-cobalt/10 pt-3 font-body text-sm font-semibold text-speaking-cobalt">
-                    Calificación del profesor: {activity.submissions[0].submissionFeedback.score}/20 puntos
-                  </p>
+                {(activity.submissions[0]?.submissionFeedback?.score != null ||
+                  activity.submissions[0]?.submissionFeedback?.comment) && (
+                  <section className="mt-4 border-t border-speaking-cobalt/10 pt-3" aria-label="Feedback del profesor">
+                    <h4 className="font-body text-sm font-semibold text-speaking-cobalt">Feedback del profesor</h4>
+                    {activity.submissions[0].submissionFeedback.score != null && (
+                      <p className="mt-2 font-body text-sm font-semibold text-speaking-cobalt">
+                        Calificación: {activity.submissions[0].submissionFeedback.score}/20 puntos
+                      </p>
+                    )}
+                    {activity.submissions[0].submissionFeedback.comment && (
+                      <p className="mt-2 whitespace-pre-wrap break-words font-body text-sm leading-6 text-speaking-cobalt/80">
+                        {activity.submissions[0].submissionFeedback.comment}
+                      </p>
+                    )}
+                  </section>
                 )}
               </li>
             ))}

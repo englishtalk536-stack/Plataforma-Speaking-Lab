@@ -48,7 +48,7 @@ export default async function TeacherClassroomPage({
               responseText: true,
               submittedAt: true,
               student: { select: { fullName: true } },
-              submissionFeedback: { select: { score: true } },
+              submissionFeedback: { select: { score: true, comment: true } },
             },
             orderBy: { submittedAt: 'desc' },
           },
@@ -122,6 +122,7 @@ export default async function TeacherClassroomPage({
                               classroomId={classroomId}
                               submissionId={submission.id}
                               initialScore={submission.submissionFeedback?.score ?? null}
+                              initialComment={submission.submissionFeedback?.comment ?? null}
                             />
                           </div>
                         </li>
