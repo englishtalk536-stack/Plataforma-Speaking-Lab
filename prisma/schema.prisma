@@ -80,6 +80,19 @@ enum BookingStatus {
   CANCELLED
 }
 
+enum VirtualClassStatus {
+  SCHEDULED
+  CANCELLED
+  COMPLETED
+}
+
+enum VirtualClassAttendanceStatus {
+  NOT_REQUESTED
+  PENDING_VALIDATION
+  ATTENDED
+  ABSENT
+}
+
 enum DailyQuestStatus {
   PENDING
   COMPLETED
@@ -137,6 +150,8 @@ model User {
   classroomMemberships ClassroomMembership[] @relation("ClassroomMembershipUser")
   activitySubmissions  ActivitySubmission[]  @relation("ActivitySubmissionStudent")
   authoredSubmissionFeedback SubmissionFeedback[] @relation("SubmissionFeedbackTeacher")
+  virtualClassAttendances VirtualClassAttendance[] @relation("VirtualClassAttendanceStudent")
+  validatedVirtualClassAttendances VirtualClassAttendance[] @relation("VirtualClassAttendanceValidator")
 
   @@index([role])
   @@map("users")
@@ -294,6 +309,7 @@ model Classroom {
   teacher     User                  @relation("ClassroomTeacher", fields: [teacherId], references: [id])
   memberships ClassroomMembership[] @relation("ClassroomMembershipClassroom")
   writtenActivities WrittenActivity[] @relation("ClassroomWrittenActivities")
+  virtualClasses VirtualClass[] @relation("ClassroomVirtualClasses")
 
   @@index([teacherId])
   @@index([status])
@@ -371,6 +387,46 @@ model SubmissionFeedback {
 
   @@index([teacherId])
   @@map("submission_feedback")
+}
+
+model VirtualClass {
+  id          String            @id @default(uuid())
+  classroomId String            @map("classroom_id")
+  title       String
+  joinUrl     String            @map("join_url")
+  scheduledAt DateTime          @map("scheduled_at")
+  status      VirtualClassStatus @default(SCHEDULED)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  classroom   Classroom                @relation("ClassroomVirtualClasses", fields: [classroomId], references: [id], onDelete: NoAction)
+  attendances VirtualClassAttendance[]
+
+  @@index([classroomId, scheduledAt])
+  @@index([classroomId, status])
+  @@map("virtual_classes")
+}
+
+model VirtualClassAttendance {
+  id                    String                       @id @default(uuid())
+  virtualClassId        String                       @map("virtual_class_id")
+  studentId             String                       @map("student_id")
+  joinClickedAt         DateTime?                    @map("join_clicked_at")
+  attendanceRequestedAt DateTime?                    @map("attendance_requested_at")
+  status                VirtualClassAttendanceStatus @default(NOT_REQUESTED)
+  validatedByTeacherId  String?                      @map("validated_by_teacher_id")
+  validatedAt           DateTime?                    @map("validated_at")
+  createdAt             DateTime                     @default(now()) @map("created_at")
+  updatedAt             DateTime                     @updatedAt @map("updated_at")
+
+  virtualClass      VirtualClass @relation(fields: [virtualClassId], references: [id], onDelete: Cascade)
+  student           User         @relation("VirtualClassAttendanceStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  validatedByTeacher User?       @relation("VirtualClassAttendanceValidator", fields: [validatedByTeacherId], references: [id], onDelete: Cascade)
+
+  @@unique([virtualClassId, studentId])
+  @@index([virtualClassId, status])
+  @@index([studentId, status])
+  @@map("virtual_class_attendances")
 }
 
 // ============================================================================
