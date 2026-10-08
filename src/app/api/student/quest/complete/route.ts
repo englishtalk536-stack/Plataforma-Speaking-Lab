@@ -7,6 +7,7 @@ import {
   DashboardApiError,
   InvalidRequestError,
   QuestNotAvailableError,
+  StudentAccessPausedError,
   UnauthenticatedError,
 } from '../../../../../server/errors';
 import type { CompleteQuestRequest, CompleteQuestResponse } from '../../../../../lib/types/dashboard';
@@ -19,6 +20,12 @@ export async function POST(request: NextRequest) {
     if (!userId) {
       throw new UnauthenticatedError();
     }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, accessStatus: true },
+    });
+    if (user?.role !== 'STUDENT' || user.accessStatus !== 'ACTIVE') throw new StudentAccessPausedError();
 
     const body = await parseBody(request);
     const { questId } = body;

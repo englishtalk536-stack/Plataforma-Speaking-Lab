@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       prisma.user.findUnique({ where: { id: userId } }),
       prisma.streak.findUnique({ where: { userId } }),
       prisma.userSkillProgress.findMany({
-        where: { userId },
+        where: { userId, status: { in: ['UNLOCKED', 'COMPLETED'] } },
         include: { node: true },
         orderBy: { node: { levelRequired: 'asc' } },
       }),
@@ -60,6 +60,9 @@ export async function GET(request: NextRequest) {
 
     if (!user) {
       throw new StudentNotFoundError(userId);
+    }
+    if (user.role !== 'STUDENT' || user.accessStatus !== 'ACTIVE') {
+      return NextResponse.json({ error: 'Student access is paused or unavailable.' }, { status: 403 });
     }
 
     const skillPath: SkillPathNodeDto[] = skillProgress.map((progress) => ({

@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
   if (!token) return NextResponse.redirect(new URL('/login', request.url));
 
   const role = token.role as string | undefined;
-  if (url.pathname.startsWith('/admin') && role !== 'ADMIN') return NextResponse.redirect(new URL('/dashboard', request.url));
+  if (url.pathname.startsWith('/admin') && role !== 'ADMIN') return NextResponse.redirect(new URL('/', request.url));
   if (url.pathname.startsWith('/teacher') && role !== 'TEACHER' && role !== 'ADMIN') return NextResponse.redirect(new URL('/dashboard', request.url));
 
   return NextResponse.next();

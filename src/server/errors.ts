@@ -15,6 +15,13 @@ export class UnauthenticatedError extends DashboardApiError {
   }
 }
 
+export class StudentAccessPausedError extends DashboardApiError {
+  constructor() {
+    super('Student account access is paused. Contact your teacher or administrator.', 403);
+    this.name = 'StudentAccessPausedError';
+  }
+}
+
 export class InvalidRequestError extends DashboardApiError {
   constructor(message: string) {
     super(message, 400);

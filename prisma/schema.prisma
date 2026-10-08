@@ -22,6 +22,11 @@ enum Role {
   ADMIN
 }
 
+enum UserAccessStatus {
+  ACTIVE
+  PAUSED
+}
+
 enum XpSource {
   CLASS_ATTENDANCE
   DAILY_VOICE_QUEST
@@ -102,6 +107,7 @@ model User {
   fullName     String  @map("full_name")
   avatarUrl    String? @map("avatar_url")
   role         Role    @default(STUDENT)
+  accessStatus UserAccessStatus @default(ACTIVE) @map("access_status")
 
   level     Int @default(1)
   currentXp Int @default(0) @map("current_xp")

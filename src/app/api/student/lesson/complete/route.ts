@@ -8,6 +8,7 @@ import {
   DashboardApiError,
   InvalidRequestError,
   LessonNotAvailableError,
+  StudentAccessPausedError,
   UnauthenticatedError,
 } from '../../../../../server/errors';
 import type { CompleteLessonRequest, CompleteLessonResponse, LessonSessionMetrics } from '../../../../../lib/types/practice';
@@ -39,6 +40,9 @@ export async function POST(request: NextRequest) {
       const userBefore = await tx.user.findUnique({ where: { id: userId } });
       if (!userBefore) {
         throw new LessonNotAvailableError(nodeId);
+      }
+      if (userBefore.role !== 'STUDENT' || userBefore.accessStatus !== 'ACTIVE') {
+        throw new StudentAccessPausedError();
       }
 
       // Re-entering a completed node (e.g. node-1) is a valid practice
@@ -97,24 +101,6 @@ export async function POST(request: NextRequest) {
         update: { attempts: { increment: 1 }, score: lessonScore, completedAt: new Date() },
         create: { userId, nodeId, attempts: 1, score: lessonScore, completedAt: new Date() },
       });
-
-      // Unlock any direct child nodes the student now qualifies for (by
-      // level), so the Skill Path reflects progress immediately instead of
-      // requiring a separate "unlock" step or page reload logic. Harmless
-      // to re-run on a replay — it's idempotent.
-      const childSkillNodes = await tx.skillNode.findMany({ where: { parentNodeId: nodeId } });
-      for (const child of childSkillNodes) {
-        const childProgress = await tx.userSkillProgress.findFirst({ where: { userId, nodeId: child.id } });
-        const qualifies = updatedUser.level >= child.levelRequired;
-
-        if (!childProgress) {
-          await tx.userSkillProgress.create({
-            data: { userId, nodeId: child.id, status: qualifies ? 'UNLOCKED' : 'LOCKED' },
-          });
-        } else if (qualifies && childProgress.status === 'LOCKED') {
-          await tx.userSkillProgress.update({ where: { id: childProgress.id }, data: { status: 'UNLOCKED' } });
-        }
-      }
 
       return { gamification, updatedUser, isReplay };
     });
