@@ -195,6 +195,7 @@ export function PracticeSession({ context }: PracticeSessionProps) {
       nextTurn,
       transcriptRef.current,
       context.teacherNote,
+      context.targetVocabulary,
     );
 
     setTurnIndex(nextTurn);
@@ -346,6 +347,7 @@ export function PracticeSession({ context }: PracticeSessionProps) {
           <VoiceAssistantCard
             challengeText={challengeText}
             grammarFocus={context.grammarFocus}
+            targetVocabulary={context.targetVocabulary}
             isSpeaking={tts.isSpeaking}
             isMuted={tts.isMuted}
             onToggleMute={tts.toggleMute}

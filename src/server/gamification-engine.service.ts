@@ -177,6 +177,13 @@ export class GamificationEngineService {
     };
   }
 
+  async updatePracticeStreakWithinTransaction(tx: TransactionClient, userId: string): Promise<StreakUpdateResult> {
+    if (!userId || typeof userId !== 'string') {
+      throw new InvalidEventParamsError('A valid userId is required.');
+    }
+    return this.updateStreak(tx, userId, new Date());
+  }
+
   private validateParams(params: ProcessEventParams): void {
     if (!params.userId || typeof params.userId !== 'string') {
       throw new InvalidEventParamsError('A valid userId is required.');

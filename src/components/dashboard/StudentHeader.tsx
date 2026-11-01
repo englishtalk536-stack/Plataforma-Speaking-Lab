@@ -40,7 +40,8 @@ export function StudentHeader({
   const displayRole = roleLabels[(session?.user?.role ?? 'STUDENT') as AppRole];
 
   return (
-    <header className="flex flex-col gap-4 rounded-2xl bg-speaking-cobalt px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+    <header className="relative isolate flex flex-col gap-4 overflow-hidden rounded-2xl border border-speaking-cobalt/20 bg-speaking-cobalt px-5 py-5 shadow-[0_12px_32px_rgba(16,52,105,0.18)] sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 -z-10 w-1/2 bg-gradient-to-l from-speaking-king/45 to-transparent" />
       <div className="flex items-center gap-4">
         <div className="relative h-14 w-14 shrink-0">
           {avatarUrl ? (
@@ -56,16 +57,16 @@ export function StudentHeader({
               {displayName.charAt(0).toUpperCase()}
             </div>
           )}
-          <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-speaking-cobalt bg-speaking-mustard font-title text-[11px] text-speaking-cobalt">
+          <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-speaking-cobalt bg-speaking-mustard font-title text-xs text-speaking-cobalt">
             {level}
           </span>
         </div>
 
-        <div className="min-w-[180px]">
+        <div className="min-w-0 flex-1 sm:min-w-[220px]">
           <p className="font-title text-lg leading-tight text-speaking-white">{displayName}</p>
           <p className="font-body text-xs uppercase tracking-wide text-speaking-white/60">{displayRole}</p>
           <XpProgressBar
-            className="mt-1.5 w-48"
+            className="mt-2.5 w-full max-w-xs"
             currentXp={currentXp}
             xpForCurrentLevel={xpForCurrentLevel}
             xpForNextLevel={xpForNextLevel}
@@ -74,7 +75,7 @@ export function StudentHeader({
         </div>
       </div>
 
-      <div className="flex items-center gap-3 self-start sm:self-auto">
+      <div className="flex items-center gap-2 self-start sm:self-auto sm:gap-3">
         <StreakFlame currentStreak={currentStreak} />
         <CoinsBalance coins={coins} burstTrigger={rewardTrigger} />
       </div>

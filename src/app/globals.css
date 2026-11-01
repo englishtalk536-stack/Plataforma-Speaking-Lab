@@ -3,7 +3,7 @@
 
 :root {
   --font-anton: 'Anton', sans-serif;
-  --color-speaking-cobalt: #0D1B2A;
+  --color-speaking-cobalt: #103469;
   --color-speaking-mustard: #EAB135;
   --color-speaking-background: #F4F6F8;
   --color-speaking-card: #FFFFFF;
@@ -11,11 +11,11 @@
 }
 
 html {
-  font-family: 'Tahoma', 'Verdana', 'Segoe UI', sans-serif;
+  font-family: var(--font-montserrat), 'Montserrat', 'Verdana', 'Segoe UI', sans-serif;
 }
 
 body {
-  font-family: 'Tahoma', 'Verdana', 'Segoe UI', sans-serif;
+  font-family: var(--font-montserrat), 'Montserrat', 'Verdana', 'Segoe UI', sans-serif;
   background-color: var(--color-speaking-background);
   color: var(--color-speaking-cobalt);
   -webkit-font-smoothing: antialiased;

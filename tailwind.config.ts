@@ -6,7 +6,7 @@ const config: Config = {
     extend: {
       colors: {
         speaking: {
-          cobalt: '#0D1B2A', // Azul institucional para fondos principales y headers
+          cobalt: '#103469', // Azul Cobalto institucional
           king: '#205088', // Botones primarios, nodos activos, acentos de marca
           mustard: '#EAB135', // Speaking Coins, acentos gamificados, highlights, bordes activos
           white: '#FFFFFF',
@@ -20,7 +20,7 @@ const config: Config = {
       },
       fontFamily: {
         title: ['var(--font-anton)', 'Anton', 'sans-serif'],
-        body: ['Tahoma', 'Verdana', 'Segoe UI', 'sans-serif'],
+        body: ['var(--font-montserrat)', 'Montserrat', 'Verdana', 'Segoe UI', 'sans-serif'],
       },
       keyframes: {
         'flame-flicker': {

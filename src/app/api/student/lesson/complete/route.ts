@@ -53,14 +53,14 @@ export async function POST(request: NextRequest) {
 
       let gamification: ProcessEventResult;
       if (isReplay) {
-        const streak = await tx.streak.findUnique({ where: { userId } });
+        const streakResult = await gamificationEngine.updatePracticeStreakWithinTransaction(tx, userId);
         gamification = {
           xpEarned: 0,
           newTotalXp: userBefore.currentXp,
           currentLevel: userBefore.level,
           didLevelUp: false,
-          streakUpdated: false,
-          currentStreak: streak?.currentStreak ?? 0,
+          streakUpdated: streakResult.streakUpdated,
+          currentStreak: streakResult.currentStreak,
           coinsEarned: 0,
           newTotalCoins: userBefore.coins,
         };

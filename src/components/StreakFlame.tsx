@@ -16,18 +16,19 @@ export function StreakFlame({ currentStreak, className = '' }: StreakFlameProps)
 
   return (
     <div
-      className={`flex items-center gap-1.5 rounded-full border border-speaking-streak/30 bg-speaking-streak/10 px-3 py-1.5 ${className}`}
+      className={`flex min-h-11 items-center gap-2 rounded-xl border border-speaking-streak/30 bg-speaking-streak/10 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${className}`}
       title={isActive ? `${currentStreak}-day streak` : 'No active streak yet'}
     >
       <Flame
         aria-hidden="true"
         className={`h-4 w-4 ${
-          isActive ? 'origin-bottom animate-flame-flicker text-speaking-streak' : 'text-speaking-locked'
+          isActive ? 'origin-bottom animate-flame-flicker text-speaking-streak' : 'text-speaking-white/70'
         }`}
         fill={isActive ? 'currentColor' : 'none'}
         strokeWidth={isActive ? 1.5 : 1.5}
       />
-      <span className="font-title text-sm text-speaking-white">{currentStreak}</span>
+      <span className="font-title text-base leading-none text-speaking-white">{currentStreak}</span>
+      <span className="font-body text-xs font-semibold text-speaking-white/80">días</span>
       <span className="sr-only">day streak</span>
     </div>
   );

@@ -21,6 +21,8 @@ export interface UseSpeechSynthesisResult {
   isSupported: boolean;
   isSpeaking: boolean;
   isMuted: boolean;
+  error: string | null;
+  warning: string | null;
   speak: (text: string, options?: SpeakOptions) => void;
   cancel: () => void;
   toggleMute: () => void;
@@ -39,9 +41,12 @@ export function useSpeechSynthesis(options: UseSpeechSynthesisOptions = {}): Use
 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   const isMutedRef = useRef(isMuted);
   const pendingOnEndRef = useRef<(() => void) | null>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   useEffect(() => {
     isMutedRef.current = isMuted;
@@ -51,6 +56,7 @@ export function useSpeechSynthesis(options: UseSpeechSynthesisOptions = {}): Use
 
   const finish = useCallback(() => {
     setIsSpeaking(false);
+    utteranceRef.current = null;
     const callback = pendingOnEndRef.current;
     pendingOnEndRef.current = null;
     callback?.();
@@ -58,15 +64,24 @@ export function useSpeechSynthesis(options: UseSpeechSynthesisOptions = {}): Use
 
   const speak = useCallback(
     (text: string, speakOptions: SpeakOptions = {}) => {
-      // Any previous utterance is superseded — cancel it (and let its own
-      // onEnd fire naturally via the browser's cancel behavior is
-      // inconsistent across browsers, so we finish it manually here).
-      if (isSupported) window.speechSynthesis.cancel();
+      if (isSupported && utteranceRef.current) window.speechSynthesis.cancel();
       finish();
-
       pendingOnEndRef.current = speakOptions.onEnd ?? null;
+      setError(null);
+      setWarning(null);
 
-      if (!isSupported || isMutedRef.current) {
+      if (!text.trim()) {
+        setError('No hay texto para reproducir.');
+        setTimeout(finish, 0);
+        return;
+      }
+      if (!isSupported) {
+        setError('La lectura en voz alta no está disponible en este navegador.');
+        setTimeout(finish, 0);
+        return;
+      }
+      if (isMutedRef.current) {
+        setError('La voz está silenciada. Activa el sonido del navegador e inténtalo de nuevo.');
         // Nothing will actually play — resolve on the next tick so callers
         // that call speak() then immediately check `isSpeaking` see
         // consistent "not speaking" state rather than a same-tick flicker.
@@ -75,13 +90,29 @@ export function useSpeechSynthesis(options: UseSpeechSynthesisOptions = {}): Use
       }
 
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = lang;
       utterance.rate = speakOptions.rate ?? rate;
       utterance.pitch = pitch;
-      utterance.onstart = () => setIsSpeaking(true);
+      const requestedLanguage = lang.toLowerCase();
+      const availableVoices = window.speechSynthesis.getVoices();
+      const englishVoice = availableVoices.find((voice) => voice.lang.toLowerCase() === requestedLanguage)
+        ?? availableVoices.find((voice) => voice.lang.toLowerCase().startsWith(requestedLanguage.split('-')[0]));
+      const selectedVoice = englishVoice ?? availableVoices.find((voice) => voice.default) ?? availableVoices[0];
+      utterance.lang = englishVoice?.lang ?? selectedVoice?.lang ?? lang;
+      if (selectedVoice) utterance.voice = selectedVoice;
+      if (!englishVoice && selectedVoice) {
+        setWarning('No hay una voz en inglés instalada. Se reproducirá con la voz predeterminada del dispositivo.');
+      }
+      utterance.onstart = () => {
+        setError(null);
+        setIsSpeaking(true);
+      };
       utterance.onend = finish;
-      utterance.onerror = finish;
+      utterance.onerror = () => {
+        setError('No se pudo reproducir la consigna. Comprueba que el dispositivo tenga una voz en inglés disponible.');
+        finish();
+      };
 
+      utteranceRef.current = utterance;
       window.speechSynthesis.speak(utterance);
     },
     [isSupported, lang, rate, pitch, finish],
@@ -111,5 +142,5 @@ export function useSpeechSynthesis(options: UseSpeechSynthesisOptions = {}): Use
     };
   }, [isSupported]);
 
-  return { isSupported, isSpeaking, isMuted, speak, cancel, toggleMute };
+  return { isSupported, isSpeaking, isMuted, error, warning, speak, cancel, toggleMute };
 }

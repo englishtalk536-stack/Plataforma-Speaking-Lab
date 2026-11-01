@@ -1,4 +1,4 @@
-import { Anton } from 'next/font/google';
+import { Anton, Montserrat } from 'next/font/google';
 
 /**
  * Anton is loaded via next/font/google (self-hosted at build time, no
@@ -20,5 +20,12 @@ export const anton = Anton({
   subsets: ['latin'],
   weight: '400',
   variable: '--font-anton',
+  display: 'swap',
+});
+
+export const montserrat = Montserrat({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-montserrat',
   display: 'swap',
 });

@@ -26,6 +26,7 @@ export interface ClassroomSummaryDto {
   name: string;
   description: string | null;
   level: string | null;
+  englishLevel: string | null;
   status: ClassroomStatusDto;
   teacher: {
     id: string;
@@ -35,6 +36,64 @@ export interface ClassroomSummaryDto {
   joinedAt: string;
 }
 
+export interface UpcomingVirtualClassDto {
+  id: string;
+  title: string;
+  joinUrl: string;
+  scheduledAt: string;
+  classroomId: string;
+  classroomName: string;
+}
+
+export interface DashboardNotificationDto {
+  id: string;
+  title: string;
+  message: string;
+  href: string | null;
+  createdAt: string;
+}
+
+export interface CompletedClassDto {
+  id: string;
+  title: string;
+  taughtAt: string;
+  classroomId: string;
+  classroomName: string;
+  notes?: string | null;
+  improvementOpportunities?: string | null;
+}
+
+export interface StudentClassFollowUpDto {
+  id: string;
+  title: string;
+  taughtAt: string;
+  notes: string;
+  improvementOpportunities: string | null;
+  homework: string | null;
+  practiceNodeId: string | null;
+  practiceTitle: string | null;
+  practiceCompleted: boolean;
+  classroomId: string;
+  classroomName: string;
+}
+
+export interface StudentHomeworkTaskDto {
+  id: string;
+  title: string;
+  homework: string;
+  classroomId: string;
+  classroomName: string;
+}
+
+export interface StudentActivityDto {
+  id: string;
+  title: string;
+  prompt: string;
+  createdAt: string;
+  classroomId: string;
+  classroomName: string;
+}
+
 export interface DailyQuestDto {
   /** UserDailyQuest.id — pass this back as `questId` to POST /api/student/quest/complete. */
   id: string;
@@ -42,6 +101,8 @@ export interface DailyQuestDto {
   description: string;
   xpReward: number;
   coinReward: number;
+  activityType: string;
+  resourceUrl: string | null;
   status: DailyQuestStatusDto;
 }
 
@@ -61,6 +122,11 @@ export interface StudentDashboardResponse {
   feedbackRadar: FeedbackRadarDto;
   dailyQuests: DailyQuestDto[];
   classrooms: ClassroomSummaryDto[];
+  upcomingVirtualClasses: UpcomingVirtualClassDto[];
+  notifications: DashboardNotificationDto[];
+  classFollowUps: StudentClassFollowUpDto[];
+  homeworkTasks: StudentHomeworkTaskDto[];
+  activities: StudentActivityDto[];
 }
 
 export interface CompleteQuestRequest {

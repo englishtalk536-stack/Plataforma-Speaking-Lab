@@ -26,11 +26,11 @@ export async function GET(request: NextRequest) {
       throw new UnauthenticatedError();
     }
 
-    const [user, streak, skillProgress, dailyQuests, classroomMemberships] = await Promise.all([
+    const [user, streak, skillProgress, dailyQuests, classroomMemberships, notifications, classFollowUps, completedLessonProgress] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId } }),
       prisma.streak.findUnique({ where: { userId } }),
       prisma.userSkillProgress.findMany({
-        where: { userId, status: { in: ['UNLOCKED', 'COMPLETED'] } },
+        where: { userId, status: 'UNLOCKED' },
         include: { node: true },
         orderBy: { node: { levelRequired: 'asc' } },
       }),
@@ -51,10 +51,68 @@ export async function GET(request: NextRequest) {
               teacher: {
                 select: { id: true, fullName: true },
               },
+              virtualClasses: {
+                where: { status: 'SCHEDULED' },
+                select: { id: true, title: true, joinUrl: true, scheduledAt: true },
+                orderBy: { scheduledAt: 'asc' },
+              },
+              writtenActivities: {
+                select: {
+                  id: true,
+                  title: true,
+                  prompt: true,
+                  createdAt: true,
+                  submissions: {
+                    where: { studentId: userId },
+                    select: { responseText: true },
+                    take: 1,
+                  },
+                },
+                orderBy: { createdAt: 'desc' },
+              },
             },
           },
         },
         orderBy: { joinedAt: 'desc' },
+      }),
+      prisma.notification.findMany({
+        where: { userId, readAt: null },
+        select: { id: true, title: true, message: true, href: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+      prisma.classLesson.findMany({
+        where: {
+          recipients: { some: { studentId: userId } },
+          classroom: {
+            is: {
+              status: 'ACTIVE',
+              memberships: { some: { userId, status: 'ACTIVE' } },
+            },
+          },
+        },
+        select: {
+          id: true,
+          title: true,
+          taughtAt: true,
+          notes: true,
+          improvementOpportunities: true,
+          homework: true,
+          practiceNode: {
+            select: {
+              id: true,
+              title: true,
+              userProgress: { where: { userId, status: 'COMPLETED' }, select: { id: true }, take: 1 },
+              lessonProgress: { where: { userId, completedAt: { not: null } }, select: { id: true }, take: 1 },
+            },
+          },
+          classroom: { select: { id: true, name: true } },
+        },
+        orderBy: { taughtAt: 'desc' },
+      }),
+      prisma.userLessonProgress.findMany({
+        where: { userId, completedAt: { not: null } },
+        select: { nodeId: true },
       }),
     ]);
 
@@ -65,13 +123,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Student access is paused or unavailable.' }, { status: 403 });
     }
 
-    const skillPath: SkillPathNodeDto[] = skillProgress.map((progress) => ({
-      id: progress.node.id,
-      title: progress.node.title,
-      status: toWireNodeStatus(progress.status),
-      xpReward: progress.node.xpReward,
-      position: { x: progress.node.positionX, y: progress.node.positionY },
-    }));
+    const completedVirtualClasses = classFollowUps.length
+      ? await prisma.virtualClass.findMany({
+          where: {
+            status: 'COMPLETED',
+            classroomId: { in: [...new Set(classFollowUps.map((followUp) => followUp.classroom.id))] },
+            scheduledAt: { in: classFollowUps.map((followUp) => followUp.taughtAt) },
+          },
+          select: { classroomId: true, scheduledAt: true },
+        })
+      : [];
+    const completedClassKeys = new Set(
+      completedVirtualClasses.map(({ classroomId, scheduledAt }) => `${classroomId}:${scheduledAt.getTime()}`),
+    );
+
+    const completedLessonNodeIds = new Set(completedLessonProgress.map(({ nodeId }) => nodeId));
+    const skillPath: SkillPathNodeDto[] = skillProgress
+      .filter((progress) => !completedLessonNodeIds.has(progress.node.id))
+      .map((progress) => ({
+        id: progress.node.id,
+        title: progress.node.title,
+        status: toWireNodeStatus(progress.status),
+        xpReward: progress.node.xpReward,
+        position: { x: progress.node.positionX, y: progress.node.positionY },
+      }));
 
     const feedbackRadar: FeedbackRadarDto = {
       fluency: user.radarFluency,
@@ -86,6 +161,8 @@ export async function GET(request: NextRequest) {
       description: assignment.quest.description,
       xpReward: assignment.quest.xpReward,
       coinReward: assignment.quest.coinReward,
+      activityType: assignment.quest.activityType,
+      resourceUrl: assignment.quest.resourceUrl,
       status: assignment.status,
     }));
 
@@ -94,6 +171,7 @@ export async function GET(request: NextRequest) {
       name: membership.classroom.name,
       description: membership.classroom.description,
       level: membership.classroom.level,
+      englishLevel: membership.englishLevel,
       status: membership.classroom.status,
       teacher: {
         id: membership.classroom.teacher.id,
@@ -102,6 +180,17 @@ export async function GET(request: NextRequest) {
       membershipStatus: membership.status,
       joinedAt: membership.joinedAt.toISOString(),
     }));
+
+    const upcomingVirtualClasses = classroomMemberships
+      .flatMap(({ classroom }) =>
+        classroom.virtualClasses.map((virtualClass) => ({
+          ...virtualClass,
+          scheduledAt: virtualClass.scheduledAt.toISOString(),
+          classroomId: classroom.id,
+          classroomName: classroom.name,
+        })),
+      )
+      .sort((first, second) => first.scheduledAt.localeCompare(second.scheduledAt));
 
     const response: StudentDashboardResponse = {
       profile: {
@@ -115,8 +204,46 @@ export async function GET(request: NextRequest) {
       },
       skillPath,
       feedbackRadar,
-      dailyQuests: quests,
+      dailyQuests: quests.filter((quest) => quest.status === 'PENDING'),
       classrooms,
+      upcomingVirtualClasses,
+      notifications: notifications.map((notification) => ({ ...notification, createdAt: notification.createdAt.toISOString() })),
+      classFollowUps: classFollowUps
+        .filter((followUp) => !completedClassKeys.has(`${followUp.classroom.id}:${followUp.taughtAt.getTime()}`))
+        .map((followUp) => ({
+          id: followUp.id,
+          title: followUp.title,
+          taughtAt: followUp.taughtAt.toISOString(),
+          notes: followUp.notes,
+          improvementOpportunities: followUp.improvementOpportunities,
+          homework: followUp.homework,
+          practiceNodeId: followUp.practiceNode?.id ?? null,
+          practiceTitle: followUp.practiceNode?.title ?? null,
+          practiceCompleted: Boolean(followUp.practiceNode?.userProgress.length || followUp.practiceNode?.lessonProgress.length),
+          classroomId: followUp.classroom.id,
+          classroomName: followUp.classroom.name,
+        })),
+      homeworkTasks: classFollowUps
+        .filter((followUp) => completedClassKeys.has(`${followUp.classroom.id}:${followUp.taughtAt.getTime()}`) && Boolean(followUp.homework?.trim()))
+        .map((followUp) => ({
+          id: followUp.id,
+          title: followUp.title,
+          homework: followUp.homework as string,
+          classroomId: followUp.classroom.id,
+          classroomName: followUp.classroom.name,
+        })),
+      activities: classroomMemberships.flatMap(({ classroom }) =>
+        classroom.writtenActivities
+          .filter((activity) => activity.submissions.length === 0)
+          .map((activity) => ({
+            id: activity.id,
+            title: activity.title,
+            prompt: activity.prompt,
+            createdAt: activity.createdAt.toISOString(),
+            classroomId: classroom.id,
+            classroomName: classroom.name,
+          })),
+      ),
     };
 
     return NextResponse.json(response);

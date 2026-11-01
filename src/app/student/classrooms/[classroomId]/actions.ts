@@ -48,7 +48,7 @@ export async function saveActivitySubmission(
   if (!activity) return { status: 'error', message: 'No se encontró esta actividad en el aula.' };
 
   try {
-    const gradeWasCleared = await prisma.$transaction(async (transaction) => {
+    const created = await prisma.$transaction(async (transaction) => {
       const existingSubmission = await transaction.activitySubmission.findUnique({
         where: {
           activityId_studentId: {
@@ -56,44 +56,32 @@ export async function saveActivitySubmission(
             studentId,
           },
         },
-        select: { id: true, responseText: true, submissionFeedback: { select: { id: true } } },
+        select: { id: true },
       });
 
-      const changedPreviouslyGradedResponse =
-        !!existingSubmission?.submissionFeedback && existingSubmission.responseText !== responseText;
+      if (existingSubmission) return false;
 
-      if (existingSubmission && existingSubmission.responseText !== responseText) {
-        await transaction.submissionFeedback.deleteMany({
-          where: { submissionId: existingSubmission.id },
-        });
-      }
-
-      await transaction.activitySubmission.upsert({
-        where: {
-          activityId_studentId: {
-            activityId: activity.id,
-            studentId,
-          },
-        },
-        update: { responseText, submittedAt: new Date() },
-        create: {
+      await transaction.activitySubmission.create({
+        data: {
           activityId: activity.id,
           studentId,
           responseText,
         },
       });
 
-      return changedPreviouslyGradedResponse;
+      return true;
     });
 
+    if (!created) {
+      return { status: 'error', message: 'Esta actividad ya fue entregada y no se puede editar.' };
+    }
+
     revalidatePath(`/student/classrooms/${classroomId}`);
-    return {
-      status: 'success',
-      message: gradeWasCleared
-        ? 'Respuesta actualizada. El profesor tendrá que revisarla de nuevo.'
-        : 'Respuesta guardada correctamente.',
-    };
-  } catch {
+    return { status: 'success', message: 'Respuesta guardada correctamente. La entrega ya no se puede editar.' };
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
+      return { status: 'error', message: 'Esta actividad ya fue entregada y no se puede editar.' };
+    }
     return { status: 'error', message: 'No se pudo guardar la respuesta. Inténtalo de nuevo.' };
   }
 }

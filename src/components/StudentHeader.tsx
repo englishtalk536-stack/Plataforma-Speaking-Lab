@@ -47,7 +47,7 @@ export function StudentHeader({
               {fullName.charAt(0).toUpperCase()}
             </div>
           )}
-          <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-speaking-cobalt bg-speaking-mustard font-title text-[11px] text-speaking-cobalt">
+          <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-speaking-cobalt bg-speaking-mustard font-title text-xs text-speaking-cobalt">
             {level}
           </span>
         </div>

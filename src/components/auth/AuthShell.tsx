@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import type { ReactNode } from 'react';
-import speakingLabLogo from '../../../public/speaking-lab-logo.png';
+import vectorizedLogo from '../../../docs/Logo vectorizado.png';
 
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
@@ -29,16 +29,14 @@ export function AuthShell({ children }: { children: ReactNode }) {
             <div className="relative mb-5 flex h-32 w-32 items-center justify-center sm:mb-7 sm:h-40 sm:w-40">
               <div className="absolute inset-0 rotate-[-8deg] rounded-[2rem] border border-white/90 bg-white/65 shadow-[0_14px_36px_rgba(16,52,105,0.12)] backdrop-blur-md" />
               <Image
-                src={speakingLabLogo}
+                src={vectorizedLogo}
                 alt="Logo de Speaking Lab"
-                width={160}
-                height={160}
                 priority
-                className="relative h-[112px] w-[112px] object-contain sm:h-[144px] sm:w-[144px]"
+                className="relative h-[140px] w-[140px] object-contain sm:h-[175px] sm:w-[175px]"
               />
             </div>
-            <p className="font-body text-xs font-bold uppercase text-speaking-king">Speaking Lab</p>
-            <h2 className="mt-3 max-w-lg font-title text-3xl leading-tight text-speaking-cobalt sm:text-4xl">
+            <p className="font-title text-2xl text-speaking-cobalt"><span className="text-speaking-king">Speaking</span> Lab</p>
+            <h2 className="mt-2 max-w-lg font-title text-3xl leading-tight text-speaking-cobalt sm:text-4xl">
               Bienvenidos a Speaking Lab. Enciende tu voz.
             </h2>
             <p className="mt-4 max-w-md font-body text-lg leading-7 text-speaking-cobalt/75 sm:text-xl">

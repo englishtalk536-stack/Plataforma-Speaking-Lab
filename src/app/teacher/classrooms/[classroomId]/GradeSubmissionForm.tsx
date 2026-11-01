@@ -13,7 +13,7 @@ function SaveGradeButton() {
     <button
       type="submit"
       disabled={pending}
-      className="min-h-10 bg-speaking-cobalt px-4 py-2 font-body text-sm font-semibold text-white hover:bg-speaking-cobalt/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-speaking-mustard focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+      className="min-h-11 bg-speaking-cobalt px-5 py-2.5 font-body text-sm font-semibold text-white transition-colors hover:bg-speaking-king focus-visible:outline focus-visible:outline-2 focus-visible:outline-speaking-mustard focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? 'Guardando…' : 'Guardar nota'}
     </button>
@@ -35,12 +35,15 @@ export function GradeSubmissionForm({
   const [state, formAction] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label htmlFor={`grade-${submissionId}`} className="block font-body text-sm font-semibold text-speaking-cobalt">
-          Nota (1–20 puntos)
+    <form action={formAction} className="space-y-4 border-l-2 border-speaking-king/50 bg-speaking-white p-4 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="max-w-md">
+          <p className="font-body text-xs font-bold uppercase tracking-[0.08em] text-speaking-king">Revisión del profesor</p>
+          <label htmlFor={`grade-${submissionId}`} className="mt-2 block font-body text-sm font-semibold text-speaking-cobalt">
+            Calificación <span className="font-normal text-speaking-cobalt/60">· 1 a 20</span>
           </label>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
             id={`grade-${submissionId}`}
             name="score"
@@ -51,10 +54,10 @@ export function GradeSubmissionForm({
             required
             defaultValue={initialScore ?? ''}
             aria-invalid={state.status === 'error'}
-            className="mt-1 h-10 w-28 border border-speaking-cobalt/20 bg-white px-3 font-body text-sm text-speaking-cobalt focus:border-speaking-cobalt focus:outline-none focus:ring-2 focus:ring-speaking-cobalt/15"
+            className="min-h-11 w-full border border-speaking-cobalt/20 bg-white px-3 font-body text-sm text-speaking-cobalt focus:border-speaking-king focus:outline-none focus:ring-2 focus:ring-speaking-king/15 sm:w-28"
           />
+          <SaveGradeButton />
         </div>
-        <SaveGradeButton />
       </div>
 
       <div>
@@ -69,12 +72,13 @@ export function GradeSubmissionForm({
           rows={4}
           defaultValue={initialComment ?? ''}
           aria-invalid={state.status === 'error'}
-          className="mt-1 w-full resize-y border border-speaking-cobalt/20 bg-white px-3 py-2 font-body text-sm leading-6 text-speaking-cobalt focus:border-speaking-cobalt focus:outline-none focus:ring-2 focus:ring-speaking-cobalt/15"
+          placeholder="Reconoce sus avances y concreta el siguiente paso de aprendizaje."
+          className="mt-1 min-h-28 w-full resize-y border border-speaking-cobalt/20 bg-white px-3 py-2.5 font-body text-sm leading-6 text-speaking-cobalt focus:border-speaking-king focus:outline-none focus:ring-2 focus:ring-speaking-king/15"
         />
       </div>
 
       {state.status !== 'idle' && (
-        <p role={state.status === 'error' ? 'alert' : 'status'} className="basis-full font-body text-sm text-speaking-cobalt">
+        <p role={state.status === 'error' ? 'alert' : 'status'} className={`border-l-2 px-3 py-2 font-body text-sm ${state.status === 'error' ? 'border-speaking-streak bg-speaking-streak/5 text-speaking-streak' : 'border-speaking-success bg-speaking-success/5 text-speaking-success'}`}>
           {state.message}
         </p>
       )}

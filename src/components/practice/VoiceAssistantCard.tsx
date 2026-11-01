@@ -7,6 +7,7 @@ import { ChevronDown, Ear, Eye, Repeat, Sparkles, Turtle, Volume2, VolumeX } fro
 export interface VoiceAssistantCardProps {
   challengeText: string;
   grammarFocus: string[];
+  targetVocabulary: string[];
   /** true while the AI's voice is actually speaking (from useSpeechSynthesis) — drives the waveform. */
   isSpeaking: boolean;
   isMuted: boolean;
@@ -72,6 +73,7 @@ function Waveform({ active }: { active: boolean }) {
 export function VoiceAssistantCard({
   challengeText,
   grammarFocus,
+  targetVocabulary,
   isSpeaking,
   isMuted,
   onToggleMute,
@@ -89,7 +91,7 @@ export function VoiceAssistantCard({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-speaking-king">
           <Sparkles className="h-4 w-4" aria-hidden="true" />
-          <span className="font-body text-xs font-semibold">Your AI conversation partner</span>
+          <span className="font-body text-xs font-semibold">Escucha y responde</span>
         </div>
 
         <div className="flex items-center gap-1">
@@ -99,7 +101,7 @@ export function VoiceAssistantCard({
             disabled={replayDisabled}
             aria-label="Listen again"
             title={isMuted ? 'Unmute to listen again' : 'Listen again'}
-            className="rounded-full p-1.5 text-speaking-cobalt/50 transition-colors hover:bg-speaking-cobalt/5 hover:text-speaking-cobalt disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            className="rounded-full p-1.5 text-speaking-cobalt/70 transition-colors hover:bg-speaking-cobalt/5 hover:text-speaking-cobalt disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
           >
             <Repeat className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -110,7 +112,7 @@ export function VoiceAssistantCard({
             disabled={replayDisabled}
             aria-label="Listen again, slower"
             title={isMuted ? 'Unmute to listen again' : 'Listen again, slower'}
-            className="rounded-full p-1.5 text-speaking-cobalt/50 transition-colors hover:bg-speaking-cobalt/5 hover:text-speaking-cobalt disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            className="rounded-full p-1.5 text-speaking-cobalt/70 transition-colors hover:bg-speaking-cobalt/5 hover:text-speaking-cobalt disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
           >
             <Turtle className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -120,7 +122,7 @@ export function VoiceAssistantCard({
             onClick={onToggleMute}
             aria-pressed={isMuted}
             aria-label={isMuted ? 'Unmute AI voice' : 'Mute AI voice'}
-            className="rounded-full p-1.5 text-speaking-cobalt/50 transition-colors hover:bg-speaking-cobalt/5 hover:text-speaking-cobalt"
+            className="rounded-full p-1.5 text-speaking-cobalt/70 transition-colors hover:bg-speaking-cobalt/5 hover:text-speaking-cobalt"
           >
             {isMuted ? <VolumeX className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
           </button>
@@ -134,16 +136,31 @@ export function VoiceAssistantCard({
       ) : (
         <div className="flex flex-col items-center gap-2 py-1">
           <Ear className="h-6 w-6 text-speaking-cobalt/30" aria-hidden="true" />
-          <p className="font-body text-sm text-speaking-cobalt/50">Listen carefully — no text this time.</p>
+          <p className="font-body text-sm text-speaking-cobalt/75">Listen carefully — no text this time.</p>
           <button
             type="button"
             onClick={onRevealText}
-            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 font-body text-xs font-semibold text-speaking-cobalt/50 hover:bg-speaking-cobalt/5 hover:text-speaking-king"
+            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 font-body text-xs font-semibold text-speaking-cobalt/70 hover:bg-speaking-cobalt/5 hover:text-speaking-king"
           >
             <Eye className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Reveal text</span>
           </button>
         </div>
+      )}
+
+      {targetVocabulary.length > 0 && (
+        <section className="mt-5 border-t border-speaking-cobalt/10 pt-4" aria-labelledby="target-vocabulary-heading">
+          <h2 id="target-vocabulary-heading" className="font-body text-sm font-semibold text-speaking-cobalt">
+            Vocabulario de este nivel
+          </h2>
+          <ul className="mt-2 flex flex-wrap gap-2">
+            {targetVocabulary.map((word) => (
+              <li key={word} className="bg-speaking-cobalt/5 px-2.5 py-1 font-body text-xs text-speaking-cobalt">
+                {word}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <div className="mt-5 border-t border-speaking-cobalt/10 pt-4">

@@ -14,8 +14,8 @@ export interface SkillPathProps {
   className?: string;
 }
 
-const ROW_HEIGHT = 108;
-const NODE_RADIUS = 26;
+const ROW_HEIGHT = 116;
+const NODE_RADIUS = 28;
 
 const STATUS_STYLES: Record<WireNodeStatus, { ring: string; fill: string; icon: 'lock' | 'check' | null }> = {
   LOCKED: { ring: 'ring-speaking-locked/40', fill: 'bg-speaking-white text-speaking-locked', icon: 'lock' },
@@ -43,9 +43,12 @@ export function SkillPath({ nodes, selectedNodeId = null, onSelectNode, classNam
     y: ROW_HEIGHT / 2 + index * ROW_HEIGHT,
   }));
 
-  const pathData = centers
-    .map((point, index) => (index === 0 ? `M ${point.x} ${point.y}` : `L ${point.x} ${point.y}`))
-    .join(' ');
+  const pathData = centers.reduce((path, point, index) => {
+    if (index === 0) return `M ${point.x} ${point.y}`;
+    const previous = centers[index - 1];
+    const middleY = (previous.y + point.y) / 2;
+    return `${path} C ${previous.x} ${middleY}, ${point.x} ${middleY}, ${point.x} ${point.y}`;
+  }, '');
 
   return (
     <div className={`relative ${className}`} style={{ height }}>
@@ -55,7 +58,8 @@ export function SkillPath({ nodes, selectedNodeId = null, onSelectNode, classNam
         className="pointer-events-none absolute inset-0 h-full w-full"
         aria-hidden="true"
       >
-        <path d={pathData} fill="none" stroke="#64748B" strokeOpacity={0.25} strokeWidth={3} strokeDasharray="2 10" strokeLinecap="round" />
+        <path d={pathData} fill="none" stroke="#103469" strokeOpacity={0.12} strokeWidth={8} strokeLinecap="round" />
+        <path d={pathData} fill="none" stroke="#205088" strokeOpacity={0.5} strokeWidth={2.5} strokeDasharray="3 9" strokeLinecap="round" />
       </svg>
 
       <ol className="relative">
@@ -80,8 +84,8 @@ export function SkillPath({ nodes, selectedNodeId = null, onSelectNode, classNam
                 animate={{ scale: isSelected ? 1.12 : 1 }}
                 whileTap={isInteractive ? { scale: 0.95 } : undefined}
                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                className={`flex items-center justify-center rounded-full ring-2 ${style.ring} ${style.fill} ${
-                  isInteractive ? 'cursor-pointer' : 'cursor-not-allowed opacity-90'
+                className={`flex items-center justify-center rounded-2xl ring-2 shadow-[0_5px_14px_rgba(16,52,105,0.12)] transition-shadow ${style.ring} ${style.fill} ${
+                  isInteractive ? 'cursor-pointer hover:shadow-[0_8px_20px_rgba(16,52,105,0.20)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-speaking-mustard focus-visible:outline-offset-4' : 'cursor-not-allowed opacity-90'
                 }`}
                 style={{ width: NODE_RADIUS * 2, height: NODE_RADIUS * 2 }}
               >
@@ -89,10 +93,10 @@ export function SkillPath({ nodes, selectedNodeId = null, onSelectNode, classNam
                 {style.icon === 'check' && <Check className="h-6 w-6" aria-hidden="true" />}
                 {style.icon === null && <span className="font-title text-sm">{index + 1}</span>}
               </motion.button>
-              <span className="mt-2 max-w-[8.5rem] text-center font-body text-xs font-semibold text-speaking-cobalt">
+              <span className={`mt-2 max-w-[8.5rem] text-center font-body text-xs font-semibold ${node.status === 'LOCKED' ? 'text-speaking-cobalt/70' : 'text-speaking-cobalt'}`}>
                 {node.title}
               </span>
-              <span className="font-body text-[11px] text-speaking-cobalt/60">+{node.xpReward} XP</span>
+              <span className={`mt-0.5 rounded-full px-2 py-0.5 font-body text-xs font-semibold ${node.status === 'COMPLETED' ? 'bg-speaking-success/10 text-speaking-success' : node.status === 'CURRENT' ? 'bg-speaking-mustard/20 text-speaking-cobalt' : 'bg-speaking-cobalt/5 text-speaking-cobalt/70'}`}>{node.status === 'COMPLETED' ? 'Completado' : node.status === 'CURRENT' ? 'En curso' : 'Bloqueado'} · +{node.xpReward} XP</span>
             </li>
           );
         })}

@@ -37,11 +37,8 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === 'google' && user.email) {
-        const dbUser = await prisma.user.upsert({
-          where: { email: user.email.toLowerCase() },
-          update: { fullName: user.name ?? user.email, avatarUrl: user.image },
-          create: { email: user.email.toLowerCase(), fullName: user.name ?? user.email, avatarUrl: user.image },
-        });
+        const dbUser = await prisma.user.findUnique({ where: { email: user.email.toLowerCase().trim() } });
+        if (!dbUser) return false;
         user.id = dbUser.id;
         user.role = dbUser.role;
       }

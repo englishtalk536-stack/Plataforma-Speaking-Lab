@@ -5,7 +5,7 @@ export default function StudentAccessPausedPage() {
     <main className="flex min-h-screen items-center justify-center bg-speaking-white px-4 py-10">
       <section className="w-full max-w-lg border border-speaking-cobalt/15 bg-white p-6 shadow-sm sm:p-8">
         <p className="font-body text-xs font-semibold uppercase text-speaking-streak">Acceso pausado</p>
-        <h1 className="mt-2 font-title text-2xl text-speaking-cobalt">Tu acceso a SpeakingLab está pausado</h1>
+        <h1 className="mt-2 font-title text-2xl text-speaking-cobalt">Tu acceso a Speaking Lab está pausado</h1>
         <p className="mt-3 font-body text-sm leading-6 text-speaking-cobalt/70">
           Contacta a tu profesor o al administrador para revisar el estado de tu mensualidad y reactivar tu acceso.
         </p>

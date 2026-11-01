@@ -42,7 +42,7 @@ export function XpProgressBar({
   return (
     <div className={`relative ${className}`}>
       <div
-        className={`h-2.5 w-full overflow-hidden rounded-full ${trackClass}`}
+        className={`h-3 w-full overflow-hidden rounded-full ring-1 ring-inset ${variant === 'dark' ? 'ring-white/10' : 'ring-speaking-cobalt/10'} ${trackClass}`}
         role="progressbar"
         aria-valuenow={percent}
         aria-valuemin={0}
@@ -50,13 +50,13 @@ export function XpProgressBar({
         aria-label={`Experience progress: ${percent}% to next level`}
       >
         <motion.div
-          className="h-full rounded-full bg-speaking-success"
+          className="h-full rounded-full bg-speaking-success shadow-[0_0_12px_rgba(38,147,108,0.4)]"
           initial={{ width: 0 }}
           animate={{ width: `${percent}%` }}
           transition={{ duration: 0.9, ease: 'easeOut' }}
         />
       </div>
-      <p className={`mt-1 font-body text-xs ${labelClass}`}>
+      <p className={`mt-1.5 font-body text-xs font-medium ${labelClass}`}>
         {xpRemaining > 0 ? `${xpRemaining} XP to next level` : 'Level complete'}
       </p>
       <RewardBurst triggerKey={burstTrigger} />

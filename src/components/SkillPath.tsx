@@ -86,7 +86,7 @@ export function SkillPath({ nodes, onSelectNode, className = '' }: SkillPathProp
               <span className="mt-2 max-w-[8.5rem] text-center font-body text-xs font-semibold text-speaking-cobalt">
                 {node.title}
               </span>
-              <span className="font-body text-[11px] text-speaking-cobalt/60">+{node.xpReward} XP</span>
+              <span className="font-body text-xs text-speaking-cobalt/75">+{node.xpReward} XP</span>
             </li>
           );
         })}

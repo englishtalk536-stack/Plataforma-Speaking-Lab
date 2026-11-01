@@ -15,6 +15,10 @@
 export type CEFRLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type LevelBand = 'A1-A2' | 'B1-B2' | 'C1-C2';
 
+export function isCEFRLevel(value: string | null): value is CEFRLevel {
+  return value !== null && ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].includes(value);
+}
+
 export interface TeacherNote {
   title: string;
   detail: string;
@@ -28,6 +32,7 @@ export interface PracticeContext {
   cefrName: string;
   levelBand: LevelBand;
   grammarFocus: string[];
+  targetVocabulary: string[];
   teacherNote: TeacherNote | null;
   initialChallenge: string;
   /** Total practice turns in a session, for the progress bar. */
@@ -68,80 +73,6 @@ function getLevelBand(level: CEFRLevel): LevelBand {
   if (level === 'A1' || level === 'A2') return 'A1-A2';
   if (level === 'B1' || level === 'B2') return 'B1-B2';
   return 'C1-C2';
-}
-
-const GRAMMAR_FOCUS_BY_BAND: Record<LevelBand, string[]> = {
-  'A1-A2': [
-    'Present Simple & Past Simple',
-    'Preguntas elementales (Wh- questions)',
-    'Conectores básicos: and, but, because',
-    'Transacciones cotidianas (comprar, pedir comida)',
-  ],
-  'B1-B2': [
-    'Conditionals (1st & 2nd)',
-    'Present Perfect vs. Past Simple',
-    'Phrasal verbs comunes',
-    'Modales de obligación/deducción: must, should, might',
-    'Justificación de opiniones',
-  ],
-  'C1-C2': [
-    'Inversión sintáctica: "Rarely have I seen..."',
-    'Expresiones idiomáticas',
-    'Conectores formales: nevertheless, notwithstanding',
-    'Flexibilidad discursiva y matización',
-  ],
-};
-
-// ============================================================================
-// Mock curriculum (skill-tree nodes -> CEFR level)
-// ============================================================================
-// The first three ids match the SkillNode seed data from the Prisma seed
-// script so a real nodeId from that table resolves here too; the rest are
-// mock nodes added to cover the full A1-C2 range for this UI-only deliverable.
-
-interface CurriculumNode {
-  nodeId: string;
-  exerciseTitle: string;
-  cefrLevel: CEFRLevel;
-}
-
-const CURRICULUM_NODES: CurriculumNode[] = [
-  { nodeId: '00000000-0000-0000-0000-000000000001', exerciseTitle: 'Basic Greetings', cefrLevel: 'A1' },
-  { nodeId: '00000000-0000-0000-0000-000000000002', exerciseTitle: 'Ordering Food', cefrLevel: 'A2' },
-  { nodeId: '00000000-0000-0000-0000-000000000003', exerciseTitle: 'Job Interview Prep', cefrLevel: 'B1' },
-  { nodeId: '00000000-0000-0000-0000-000000000004', exerciseTitle: 'Making Plans & Complaints', cefrLevel: 'B2' },
-  { nodeId: '00000000-0000-0000-0000-000000000005', exerciseTitle: 'Business Negotiation', cefrLevel: 'C1' },
-  { nodeId: '00000000-0000-0000-0000-000000000006', exerciseTitle: 'Debating Abstract Ideas', cefrLevel: 'C2' },
-];
-
-const DEFAULT_NODE = CURRICULUM_NODES[2]; // B1, used as a graceful fallback for unknown ids
-
-function getCurriculumNode(nodeId: string): CurriculumNode {
-  return CURRICULUM_NODES.find((node) => node.nodeId === nodeId) ?? { ...DEFAULT_NODE, nodeId };
-}
-
-// ============================================================================
-// Mock teacher notes (per node)
-// ============================================================================
-
-const TEACHER_NOTES: Record<string, TeacherNote> = {
-  '00000000-0000-0000-0000-000000000001': {
-    title: 'Foco del Profesor: Saludos formales vs. informales',
-    detail: 'El alumno mezcla "How do you do" con contextos casuales. Practicar cuándo usar cada registro.',
-  },
-  '00000000-0000-0000-0000-000000000002': {
-    title: 'Foco del Profesor: Pasados irregulares',
-    detail: 'Reforzar uso de pasados irregulares (ate, went, bought) — el alumno tiende a regularizarlos ("eated").',
-  },
-  '00000000-0000-0000-0000-000000000003': {
-    title: 'Foco del Profesor: Past Simple vs. Present Perfect',
-    detail:
-      'Trabajar fluidez en respuestas de más de 10 segundos y la distinción "I worked there" vs. "I have worked there".',
-  },
-};
-
-function getTeacherNote(nodeId: string): TeacherNote | null {
-  return TEACHER_NOTES[nodeId] ?? null;
 }
 
 // ============================================================================
@@ -275,6 +206,7 @@ export function generateAdaptiveChallenge(
   turnIndex: number,
   previousTranscript: string,
   teacherNote: TeacherNote | null = null,
+  targetVocabulary: string[] = [],
 ): string {
   const wordCount = previousTranscript.trim() ? previousTranscript.trim().split(/\s+/).length : 0;
 
@@ -297,6 +229,11 @@ export function generateAdaptiveChallenge(
   if (turnIndex % 2 === 1) {
     const reminder = getFocusReminder(teacherNote);
     if (reminder) question = `${question} ${reminder}`;
+  }
+
+  if (targetVocabulary.length > 0) {
+    const targetWord = targetVocabulary[turnIndex % targetVocabulary.length];
+    question = `${question} Try to use "${targetWord}" in your answer.`;
   }
 
   return question;
@@ -432,20 +369,38 @@ export function generateMockFeedback(cefrLevel: CEFRLevel): MockFeedback {
 
 const SESSION_TURNS = 5;
 
-/** Resolves everything the Speaking Playground needs to open a practice session for `nodeId`. */
-export function buildPracticeContext(nodeId: string): PracticeContext {
-  const node = getCurriculumNode(nodeId);
+export interface PracticeNodeData {
+  id: string;
+  title: string;
+  description: string;
+  cefrLevel: CEFRLevel;
+  challengeText: string | null;
+  targetVocabulary: string | null;
+  grammarHints: string | null;
+}
+
+/** Builds a session only from the assigned curricular node loaded from Prisma. */
+export function buildPracticeContext(node: PracticeNodeData): PracticeContext {
   const levelBand = getLevelBand(node.cefrLevel);
+  const targetVocabulary = (node.targetVocabulary ?? '')
+    .split(',')
+    .map((word) => word.trim())
+    .filter(Boolean);
+  const challenge = node.challengeText?.trim() || node.description.trim();
+  const initialChallenge = targetVocabulary.length
+    ? `${challenge} Try to use these words: ${targetVocabulary.join(', ')}.`
+    : challenge;
 
   return {
-    nodeId: node.nodeId,
-    exerciseTitle: node.exerciseTitle,
+    nodeId: node.id,
+    exerciseTitle: node.title,
     cefrLevel: node.cefrLevel,
     cefrName: CEFR_NAMES[node.cefrLevel],
     levelBand,
-    grammarFocus: GRAMMAR_FOCUS_BY_BAND[levelBand],
-    teacherNote: getTeacherNote(node.nodeId),
-    initialChallenge: generateNextChallenge(node.cefrLevel, 0),
+    grammarFocus: (node.grammarHints ?? '').split(',').map((hint) => hint.trim()).filter(Boolean),
+    targetVocabulary,
+    teacherNote: null,
+    initialChallenge,
     totalTurns: SESSION_TURNS,
   };
 }
