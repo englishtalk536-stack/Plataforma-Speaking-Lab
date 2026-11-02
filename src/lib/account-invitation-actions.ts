@@ -4,6 +4,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { Role } from '@prisma/client';
 import { requireAdminId } from './admin-auth';
+import { areAccountInvitationsEnabled } from './account-invitation-config';
 import { prisma } from './prisma';
 
 export type AccountInvitationResult =
@@ -19,8 +20,8 @@ export async function createAccountInvitation(
 ): Promise<AccountInvitationResult> {
   const adminId = await requireAdminId();
 
-  if (process.env.NODE_ENV !== 'development') {
-    return { ok: false, message: 'Las invitaciones con enlace manual solo están disponibles en desarrollo.' };
+  if (!areAccountInvitationsEnabled()) {
+    return { ok: false, message: 'Las invitaciones están deshabilitadas en este entorno.' };
   }
   if (requestedRole !== Role.TEACHER && requestedRole !== Role.STUDENT) {
     return { ok: false, message: 'El rol de invitación no es válido.' };

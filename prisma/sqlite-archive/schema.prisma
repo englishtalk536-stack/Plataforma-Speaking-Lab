@@ -1,0 +1,740 @@
+// ============================================================================
+// SpeakingLab — Prisma Schema
+// Plataforma de aprendizaje gamificada e interactiva de inglés
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum UserAccessStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum EnglishLevel {
+  A1
+  A2
+  B1
+  B2
+  C1
+  C2
+}
+
+enum XpSource {
+  CLASS_ATTENDANCE
+  DAILY_VOICE_QUEST
+  AI_PRACTICE
+  TEACHER_REWARD
+  MODULE_EVALUATION
+  SYSTEM_BONUS
+}
+
+enum NodeStatus {
+  LOCKED
+  UNLOCKED
+  COMPLETED
+}
+
+enum ItemType {
+  LESSON_VOUCHER
+  STREAK_FREEZE
+  WORKSHOP_PASS
+  CUSTOM_AVATAR
+}
+
+enum InventoryStatus {
+  AVAILABLE
+  REDEEMED
+  EXPIRED
+}
+
+enum ScenarioType {
+  ROLEPLAY_CAFE
+  JOB_INTERVIEW
+  AIRPORT_CHECKIN
+  FREE_TALK
+  BUSINESS_NEGOTIATION
+}
+
+enum ConversationStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+enum MessageSender {
+  USER
+  AI
+}
+
+enum BookingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum VirtualClassStatus {
+  SCHEDULED
+  CANCELLED
+  COMPLETED
+}
+
+enum VirtualClassAttendanceStatus {
+  NOT_REQUESTED
+  PENDING_VALIDATION
+  ATTENDED
+  ABSENT
+}
+
+enum DailyQuestStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+}
+
+enum ClassroomStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ClassroomMembershipStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// ============================================================================
+// USERS & GAMIFICATION CORE
+// ============================================================================
+
+model User {
+  id           String  @id @default(uuid())
+  email        String  @unique
+  passwordHash String? @map("password_hash")
+  fullName     String  @map("full_name")
+  avatarUrl    String? @map("avatar_url")
+  role         Role    @default(STUDENT)
+  accessStatus UserAccessStatus @default(ACTIVE) @map("access_status")
+
+  level     Int @default(1)
+  currentXp Int @default(0) @map("current_xp")
+  coins     Int @default(0)
+
+  // Feedback Radar (escala 0-100)
+  radarFluency       Float @default(0) @map("radar_fluency")
+  radarGrammar       Float @default(0) @map("radar_grammar")
+  radarPronunciation Float @default(0) @map("radar_pronunciation")
+  radarVocabulary    Float @default(0) @map("radar_vocabulary")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  streak               Streak?
+  xpLogs               XpLog[]
+  userBadges           UserBadge[]
+  skillProgress        UserSkillProgress[]
+  inventory            UserInventory[]
+  aiConversations      AiConversation[]
+  bookingsAsStudent    ClassBooking[]        @relation("StudentBookings")
+  bookingsAsTeacher    ClassBooking[]        @relation("TeacherBookings")
+  dailyQuests          UserDailyQuest[]
+  lessonProgress       UserLessonProgress[]
+  classroomsAsTeacher  Classroom[]           @relation("ClassroomTeacher")
+  classroomMemberships ClassroomMembership[] @relation("ClassroomMembershipUser")
+  accountInvitationsCreated AccountInvitation[] @relation("AccountInvitationCreator")
+  activitySubmissions  ActivitySubmission[]  @relation("ActivitySubmissionStudent")
+  authoredSubmissionFeedback SubmissionFeedback[] @relation("SubmissionFeedbackTeacher")
+  virtualClassAttendances VirtualClassAttendance[] @relation("VirtualClassAttendanceStudent")
+  validatedVirtualClassAttendances VirtualClassAttendance[] @relation("VirtualClassAttendanceValidator")
+  classLessonRecipients ClassLessonRecipient[]
+  notifications Notification[]
+  englishLevelChanges StudentEnglishLevelChange[] @relation("EnglishLevelChangedByTeacher")
+  teacherConversations TeacherStudentConversation[] @relation("TeacherStudentConversationTeacher")
+  studentConversations TeacherStudentConversation[] @relation("TeacherStudentConversationStudent")
+  sentTeacherStudentMessages TeacherStudentMessage[] @relation("TeacherStudentMessageSender")
+
+  @@index([role])
+  @@map("users")
+}
+
+model Streak {
+  id               String   @id @default(uuid())
+  userId           String   @unique @map("user_id")
+  currentStreak    Int      @default(0) @map("current_streak")
+  maxStreak        Int      @default(0) @map("max_streak")
+  lastActivityDate DateTime @map("last_activity_date")
+  freezeCredits    Int      @default(0) @map("freeze_credits")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("streaks")
+}
+
+model XpLog {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  xpAmount   Int      @map("xp_amount")
+  sourceType XpSource @map("source_type")
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([userId, sourceType])
+  @@map("xp_logs")
+}
+
+// ============================================================================
+// BADGES / ACHIEVEMENTS
+// ============================================================================
+
+model Badge {
+  id             String @id @default(uuid())
+  title          String
+  description    String
+  iconUrl        String @map("icon_url")
+  conditionType  String @map("condition_type")
+  conditionValue Int    @map("condition_value")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  userBadges UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  badgeId    String   @map("badge_id")
+  unlockedAt DateTime @default(now()) @map("unlocked_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+  @@index([badgeId])
+  @@map("user_badges")
+}
+
+// ============================================================================
+// SKILL TREE
+// ============================================================================
+
+model SkillNode {
+  id               String  @id @default(uuid())
+  title            String
+  description      String
+  levelRequired    Int     @map("level_required")
+  parentNodeId     String? @map("parent_node_id")
+  xpReward         Int     @map("xp_reward")
+  /**
+   * Speaking Coins awarded for completing this node's lesson. Added to support end-of-lesson rewards in the Speaking Playground.
+   */
+  coinReward       Int     @default(0) @map("coin_reward")
+  cefrLevel        String? @map("cefr_level")
+  challengeText    String? @map("challenge_text")
+  targetVocabulary String? @map("target_vocabulary")
+  grammarHints     String? @map("grammar_hints")
+  positionX        Float   @map("position_x")
+  positionY        Float   @map("position_y")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  parentNode SkillNode?  @relation("SkillNodeHierarchy", fields: [parentNodeId], references: [id], onDelete: SetNull)
+  children   SkillNode[] @relation("SkillNodeHierarchy")
+
+  userProgress   UserSkillProgress[]
+  lessonProgress UserLessonProgress[]
+  classLessons   ClassLesson[] @relation("ClassLessonPractice")
+
+  @@index([parentNodeId])
+  @@map("skill_nodes")
+}
+
+model UserSkillProgress {
+  id          String     @id @default(uuid())
+  userId      String     @map("user_id")
+  nodeId      String     @map("node_id")
+  status      NodeStatus @default(LOCKED)
+  completedAt DateTime?  @map("completed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node SkillNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, nodeId])
+  @@index([userId])
+  @@index([nodeId])
+  @@map("user_skill_progress")
+}
+
+model UserLessonProgress {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  nodeId      String    @map("node_id")
+  completedAt DateTime? @map("completed_at")
+  attempts    Int       @default(0)
+  score       Float?
+
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node SkillNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, nodeId])
+  @@index([userId])
+  @@index([nodeId])
+  @@map("user_lesson_progress")
+}
+
+model Classroom {
+  id          String          @id @default(uuid())
+  name        String
+  description String?
+  level       String?
+  teacherId   String          @map("teacher_id")
+  status      ClassroomStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  teacher     User                  @relation("ClassroomTeacher", fields: [teacherId], references: [id])
+  memberships ClassroomMembership[] @relation("ClassroomMembershipClassroom")
+  accountInvitations AccountInvitation[]
+  writtenActivities WrittenActivity[] @relation("ClassroomWrittenActivities")
+  virtualClasses VirtualClass[] @relation("ClassroomVirtualClasses")
+  classLessons ClassLesson[] @relation("ClassroomClassLessons")
+
+  @@index([teacherId])
+  @@index([status])
+  @@index([level])
+  @@map("classrooms")
+}
+
+model ClassroomMembership {
+  id          String                    @id @default(uuid())
+  classroomId String                    @map("classroom_id")
+  userId      String                    @map("user_id")
+  status      ClassroomMembershipStatus @default(ACTIVE)
+  englishLevel EnglishLevel?             @map("english_level")
+  joinedAt    DateTime                  @default(now()) @map("joined_at")
+  leftAt      DateTime?                 @map("left_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  classroom Classroom @relation("ClassroomMembershipClassroom", fields: [classroomId], references: [id], onDelete: Cascade)
+  user      User      @relation("ClassroomMembershipUser", fields: [userId], references: [id])
+  englishLevelChanges StudentEnglishLevelChange[]
+
+  @@unique([classroomId, userId])
+  @@index([classroomId])
+  @@index([userId])
+  @@index([classroomId, status])
+  @@index([userId, status])
+  @@map("classroom_memberships")
+}
+
+model AccountInvitation {
+  id          String   @id @default(uuid())
+  tokenHash   String   @unique @map("token_hash")
+  email       String
+  fullName    String   @map("full_name")
+  role        Role
+  classroomId String?  @map("classroom_id")
+  createdById String   @map("created_by_id")
+  expiresAt   DateTime @map("expires_at")
+  usedAt      DateTime? @map("used_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  classroom Classroom? @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  createdBy User       @relation("AccountInvitationCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([email, role, usedAt])
+  @@index([expiresAt])
+  @@map("account_invitations")
+}
+
+model StudentEnglishLevelChange {
+  id                 String       @id @default(uuid())
+  membershipId       String       @map("membership_id")
+  previousLevel      EnglishLevel? @map("previous_level")
+  newLevel           EnglishLevel @map("new_level")
+  changedByTeacherId String       @map("changed_by_teacher_id")
+  changedAt          DateTime     @default(now()) @map("changed_at")
+  reason             String?
+
+  membership       ClassroomMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  changedByTeacher User                @relation("EnglishLevelChangedByTeacher", fields: [changedByTeacherId], references: [id], onDelete: Restrict)
+
+  @@index([membershipId, changedAt])
+  @@index([changedByTeacherId, changedAt])
+  @@map("student_english_level_changes")
+}
+
+model WrittenActivity {
+  id          String   @id @default(uuid())
+  classroomId String   @map("classroom_id")
+  title       String
+  prompt      String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  classroom  Classroom           @relation("ClassroomWrittenActivities", fields: [classroomId], references: [id], onDelete: NoAction)
+  submissions ActivitySubmission[]
+
+  @@index([classroomId, createdAt])
+  @@map("written_activities")
+}
+
+model ActivitySubmission {
+  id           String   @id @default(uuid())
+  activityId   String   @map("activity_id")
+  studentId    String   @map("student_id")
+  responseText String   @map("response_text")
+  submittedAt  DateTime @default(now()) @map("submitted_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  activity           WrittenActivity    @relation(fields: [activityId], references: [id], onDelete: NoAction)
+  student            User               @relation("ActivitySubmissionStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  submissionFeedback SubmissionFeedback?
+
+  @@unique([activityId, studentId])
+  @@index([activityId])
+  @@index([studentId])
+  @@map("activity_submissions")
+}
+
+model SubmissionFeedback {
+  id           String   @id @default(uuid())
+  submissionId String   @unique @map("submission_id")
+  teacherId    String   @map("teacher_id")
+  score        Int?
+  comment      String
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  submission ActivitySubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  teacher    User               @relation("SubmissionFeedbackTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId])
+  @@map("submission_feedback")
+}
+
+model VirtualClass {
+  id          String            @id @default(uuid())
+  classroomId String            @map("classroom_id")
+  title       String
+  joinUrl     String            @map("join_url")
+  scheduledAt DateTime          @map("scheduled_at")
+  status      VirtualClassStatus @default(SCHEDULED)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  classroom   Classroom                @relation("ClassroomVirtualClasses", fields: [classroomId], references: [id], onDelete: NoAction)
+  attendances VirtualClassAttendance[]
+
+  @@index([classroomId, scheduledAt])
+  @@index([classroomId, status])
+  @@map("virtual_classes")
+}
+
+model VirtualClassAttendance {
+  id                    String                       @id @default(uuid())
+  virtualClassId        String                       @map("virtual_class_id")
+  studentId             String                       @map("student_id")
+  joinClickedAt         DateTime?                    @map("join_clicked_at")
+  attendanceRequestedAt DateTime?                    @map("attendance_requested_at")
+  status                VirtualClassAttendanceStatus @default(NOT_REQUESTED)
+  validatedByTeacherId  String?                      @map("validated_by_teacher_id")
+  validatedAt           DateTime?                    @map("validated_at")
+  createdAt             DateTime                     @default(now()) @map("created_at")
+  updatedAt             DateTime                     @updatedAt @map("updated_at")
+
+  virtualClass      VirtualClass @relation(fields: [virtualClassId], references: [id], onDelete: Cascade)
+  student           User         @relation("VirtualClassAttendanceStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  validatedByTeacher User?       @relation("VirtualClassAttendanceValidator", fields: [validatedByTeacherId], references: [id], onDelete: Cascade)
+
+  @@unique([virtualClassId, studentId])
+  @@index([virtualClassId, status])
+  @@index([studentId, status])
+  @@map("virtual_class_attendances")
+}
+
+model ClassLesson {
+  id                       String   @id @default(uuid())
+  classroomId              String   @map("classroom_id")
+  title                    String
+  taughtAt                 DateTime @map("taught_at")
+  notes                    String
+  improvementOpportunities String?  @map("improvement_opportunities")
+  homework                 String?
+  practiceNodeId           String?  @map("practice_node_id")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  classroom   Classroom              @relation("ClassroomClassLessons", fields: [classroomId], references: [id], onDelete: NoAction)
+  practiceNode SkillNode?             @relation("ClassLessonPractice", fields: [practiceNodeId], references: [id], onDelete: SetNull)
+  recipients  ClassLessonRecipient[]
+
+  @@index([classroomId, taughtAt])
+  @@index([practiceNodeId])
+  @@map("class_lessons")
+}
+
+model ClassLessonRecipient {
+  id           String   @id @default(uuid())
+  classLessonId String   @map("class_lesson_id")
+  studentId    String   @map("student_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  classLesson ClassLesson @relation(fields: [classLessonId], references: [id], onDelete: Cascade)
+  student     User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classLessonId, studentId])
+  @@index([studentId, createdAt])
+  @@map("class_lesson_recipients")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  href      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  readAt    DateTime? @map("read_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+// ============================================================================
+// STORE / COIN REDEMPTION
+// ============================================================================
+
+model StoreItem {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  costCoins   Int      @map("cost_coins")
+  itemType    ItemType @map("item_type")
+  imageUrl    String?  @map("image_url")
+  isActive    Boolean  @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  inventoryEntries UserInventory[]
+
+  @@index([isActive])
+  @@map("store_items")
+}
+
+model UserInventory {
+  id          String          @id @default(uuid())
+  userId      String          @map("user_id")
+  itemId      String          @map("item_id")
+  status      InventoryStatus @default(AVAILABLE)
+  purchasedAt DateTime        @default(now()) @map("purchased_at")
+  redeemedAt  DateTime?       @map("redeemed_at")
+
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item StoreItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([itemId])
+  @@index([userId, status])
+  @@map("user_inventory")
+}
+
+// ============================================================================
+// AI PRACTICE (AUTONOMOUS CONVERSATION)
+// ============================================================================
+
+model AiConversation {
+  id           String             @id @default(uuid())
+  userId       String             @map("user_id")
+  scenarioType ScenarioType       @map("scenario_type")
+  status       ConversationStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AiMessage[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id             String        @id @default(uuid())
+  conversationId String        @map("conversation_id")
+  sender         MessageSender
+  textContent    String        @map("text_content")
+  audioUrl       String?       @map("audio_url")
+  feedback       Json?
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("ai_messages")
+}
+
+// ============================================================================
+// CLASSES & TEACHER FEEDBACK
+// ============================================================================
+
+model ClassBooking {
+  id          String        @id @default(uuid())
+  studentId   String        @map("student_id")
+  teacherId   String        @map("teacher_id")
+  scheduledAt DateTime      @map("scheduled_at")
+  status      BookingStatus @default(SCHEDULED)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  student  User             @relation("StudentBookings", fields: [studentId], references: [id], onDelete: Cascade)
+  teacher  User             @relation("TeacherBookings", fields: [teacherId], references: [id], onDelete: Cascade)
+  feedback TeacherFeedback?
+
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([scheduledAt])
+  @@index([studentId, status])
+  @@map("class_bookings")
+}
+
+model TeacherFeedback {
+  id                 String   @id @default(uuid())
+  bookingId          String   @unique @map("booking_id")
+  fluencyScore       Float    @map("fluency_score")
+  grammarScore       Float    @map("grammar_score")
+  pronunciationScore Float    @map("pronunciation_score")
+  vocabularyScore    Float    @map("vocabulary_score")
+  comment            String?
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  booking ClassBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("teacher_feedback")
+}
+
+// ============================================================================
+// DAILY QUESTS
+// ============================================================================
+// Added to support the Daily Quest card on the student dashboard: a small
+// catalog of quests (DailyQuest) and, per student and calendar day, which
+// quest(s) they were assigned and whether they've completed it
+// (UserDailyQuest). Kept separate from SkillNode/UserSkillProgress since
+// quests are day-scoped and repeatable, while skill nodes are permanent
+// one-time unlocks.
+
+model DailyQuest {
+  id           String        @id @default(uuid())
+  title        String
+  description  String
+  xpReward     Int           @map("xp_reward")
+  coinReward   Int           @map("coin_reward")
+  scenarioType ScenarioType? @map("scenario_type")
+  activityType String        @default("SPEAKING") @map("activity_type")
+  resourceUrl  String?       @map("resource_url")
+  isActive     Boolean       @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  assignments UserDailyQuest[]
+
+  @@index([isActive])
+  @@map("daily_quests")
+}
+
+model UserDailyQuest {
+  id           String           @id @default(uuid())
+  userId       String           @map("user_id")
+  questId      String           @map("quest_id")
+  /**
+   * Normalized to UTC midnight of the day this quest was assigned — one row per user/quest/day.
+   */
+  assignedDate DateTime         @map("assigned_date")
+  status       DailyQuestStatus @default(PENDING)
+  completedAt  DateTime?        @map("completed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quest DailyQuest @relation(fields: [questId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questId, assignedDate])
+  @@index([userId, assignedDate])
+  @@map("user_daily_quests")
+}
+
+model TeacherStudentConversation {
+  id        String   @id @default(uuid())
+  teacherId String   @map("teacher_id")
+  studentId String   @map("student_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  teacher  User                   @relation("TeacherStudentConversationTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  student  User                   @relation("TeacherStudentConversationStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  messages TeacherStudentMessage[]
+
+  @@unique([teacherId, studentId])
+  @@index([teacherId, updatedAt])
+  @@index([studentId, updatedAt])
+  @@map("teacher_student_conversations")
+}
+
+model TeacherStudentMessage {
+  id             String   @id @default(uuid())
+  conversationId String   @map("conversation_id")
+  senderId       String   @map("sender_id")
+  content        String
+  readAt         DateTime? @map("read_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  conversation TeacherStudentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User                       @relation("TeacherStudentMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([conversationId, senderId, readAt])
+  @@map("teacher_student_messages")
+}

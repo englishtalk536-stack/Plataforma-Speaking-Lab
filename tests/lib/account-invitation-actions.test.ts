@@ -31,6 +31,7 @@ describe('createAccountInvitation', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('ACCOUNT_INVITATIONS_ENABLED', 'false');
     mocks.requireAdminId.mockResolvedValue('admin-id');
     mocks.userFindUnique.mockResolvedValue(null);
     mocks.invitationFindFirst.mockResolvedValue(null);
@@ -44,6 +45,25 @@ describe('createAccountInvitation', () => {
     await expect(createAccountInvitation('TEACHER', formData({ fullName: 'Test Teacher', email: 'teacher@example.test' })))
       .rejects.toThrow('not an admin');
     expect(mocks.invitationCreate).not.toHaveBeenCalled();
+  });
+
+  it('keeps production invitations disabled unless explicitly enabled', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+
+    const result = await createAccountInvitation('STUDENT', formData({ fullName: 'Pilot Student', email: 'pilot@example.test' }));
+
+    expect(result).toEqual({ ok: false, message: 'Las invitaciones están deshabilitadas en este entorno.' });
+    expect(mocks.invitationCreate).not.toHaveBeenCalled();
+  });
+
+  it('allows production invitation creation when explicitly enabled', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('ACCOUNT_INVITATIONS_ENABLED', 'true');
+
+    const result = await createAccountInvitation('STUDENT', formData({ fullName: 'Pilot Student', email: 'pilot@example.test' }));
+
+    expect(result.ok).toBe(true);
+    expect(mocks.invitationCreate).toHaveBeenCalledTimes(1);
   });
 
   it('never permits an ADMIN invitation role', async () => {

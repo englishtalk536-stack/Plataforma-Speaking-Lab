@@ -35,6 +35,13 @@ yarn-error.log*
 
 # local SQLite database
 /prisma/*.db
+/prisma/*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.bak
+*.backup
+/backups/
 
 # vercel
 .vercel

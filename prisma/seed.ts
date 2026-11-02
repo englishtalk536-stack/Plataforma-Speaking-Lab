@@ -1,5 +1,9 @@
 import { PrismaClient, ItemType, NodeStatus, Role } from '@prisma/client';
 
+if (process.env.DATABASE_URL !== 'file:./dev.db') {
+  throw new Error('Refusing to seed outside the local prisma/dev.db database.');
+}
+
 const prisma = new PrismaClient();
 
 async function main() {

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { areAccountInvitationsEnabled } from '../../../../../lib/account-invitation-config';
 import { prisma } from '../../../../../lib/prisma';
 
 type AcceptanceError = 'invalid' | 'used' | 'expired' | 'duplicate' | 'classroom';
@@ -25,7 +26,7 @@ function errorResponse(error: AcceptanceError) {
 }
 
 export async function POST(request: Request) {
-  if (process.env.NODE_ENV !== 'development') return NextResponse.json({ error: 'No disponible.' }, { status: 404 });
+  if (!areAccountInvitationsEnabled()) return NextResponse.json({ error: 'Las invitaciones están deshabilitadas.' }, { status: 404 });
 
   let body: { token?: unknown; password?: unknown };
   try {

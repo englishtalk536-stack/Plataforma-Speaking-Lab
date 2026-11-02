@@ -3,12 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "prisma generate --schema prisma/schema.prisma && next dev",
+    "build": "prisma generate --schema prisma/schema.prisma && next build",
+    "build:postgres": "prisma generate --schema prisma/postgresql/schema.prisma && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "seed": "prisma db seed"
+    "seed": "prisma db seed",
+    "db:deploy:postgres": "node scripts/deploy-postgres-migrations.mjs",
+    "admin:create:postgres": "prisma generate --schema prisma/postgresql/schema.prisma && tsx scripts/create-initial-admin.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
