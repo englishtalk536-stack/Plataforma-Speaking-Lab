@@ -16,6 +16,7 @@
 - `npm run build` también usa el perfil SQLite local.
 - `npm run build:postgres` genera el cliente desde `prisma/postgresql/schema.prisma` y compila para Vercel.
 - `npm run db:deploy:postgres` aplica migraciones manualmente sólo si `DATABASE_URL` y `DIRECT_URL` apuntan a Neon y se confirma con `NEON_MIGRATION_CONFIRM=APPLY_POSTGRES_MIGRATIONS`. Revisar el destino; el baseline está pensado para una base vacía.
+- `npm run db:catalog:postgres` carga manualmente 6 nodos padre, 52 prácticas y 12 misiones mediante upserts transaccionales. Requiere `POSTGRES_CATALOG_CONFIRM=LOAD_SPEAKINGLAB_CATALOG` y ambas URLs `*.neon.tech` para la misma base (se admite el sufijo `-pooler`); no se ejecuta durante build. Sólo escribe `skill_nodes` y `daily_quests`, no datos de usuarios ni actividad.
 - `npm run seed` sigue disponible sólo para fixtures locales: `prisma/seed.ts` aborta si `DATABASE_URL` no es exactamente `file:./dev.db`. No ejecutar seeds en Neon.
 - `npm run admin:create:postgres` es un comando privado e interactivo para crear la primera cuenta ADMIN. Requiere `DATABASE_URL`, `DIRECT_URL` y `ADMIN_BOOTSTRAP_CONFIRM=CREATE_FIRST_ADMIN` en el entorno de terminal, URLs `*.neon.tech`, una terminal TTY y contraseña introducida sin eco. Se niega si ya existe ADMIN o si el correo está ocupado; no actualiza ni eleva usuarios. No ejecutarlo desde Vercel Build.
 
@@ -25,6 +26,7 @@
 - El schema PostgreSQL independiente está en `prisma/postgresql/schema.prisma`; su baseline es `prisma/postgresql/migrations/20261102000000_initial_postgresql/migration.sql`. El baseline se generó desde un schema vacío, no desde `dev.db`.
 - Revisar el baseline y aplicarlo **sólo** a Neon de pruebas después de comprobar que la URL destino corresponde a Preview. Comando manual: `npm run db:deploy:postgres`.
 - Verificar las tablas y autenticación en Preview con datos sintéticos creados allí. No ejecutar `prisma db seed`: el seed existente inserta usuarios y contenido locales.
+- Tras aplicar el baseline y verificar Neon de Preview, ejecutar el cargador de catálogo desde un terminal privado; revisar manualmente el destino antes de establecer la confirmación. Las prácticas no incluyen archivos de audio: la voz usa SpeechSynthesis del navegador y la conversación/evaluación depende de `ANTHROPIC_API_KEY`. Confirmar soporte de voz del navegador y disponibilidad/configuración del servicio antes de considerar esas prácticas listas.
 - Tras aprobar piloto y recuperación, aplicar el baseline manualmente a Neon de producción vacío. El build y deploy no ejecutan `migrate deploy` automáticamente.
 
 ## Primera cuenta ADMIN e invitaciones

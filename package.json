@@ -11,6 +11,7 @@
     "test": "vitest run",
     "seed": "prisma db seed",
     "db:deploy:postgres": "node scripts/deploy-postgres-migrations.mjs",
+    "db:catalog:postgres": "prisma generate --schema prisma/postgresql/schema.prisma && tsx scripts/load-postgresql-catalog.ts",
     "admin:create:postgres": "prisma generate --schema prisma/postgresql/schema.prisma && tsx scripts/create-initial-admin.ts"
   },
   "dependencies": {
